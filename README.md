@@ -22,6 +22,8 @@ capture a request, turn it into a rule, edit the response, and keep building.
 - Capture HTTP(S) requests from the inspected tab.
 - Create mock rules from captured requests.
 - Mock response body, status code, and headers.
+- Add per-rule response delay.
+- Format and validate JSON response bodies.
 - Match by origin + path, exact URL, substring, or regex.
 - Organize rules into groups.
 - Enable or disable groups and individual rules.

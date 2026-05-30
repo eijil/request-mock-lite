@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.8
+
+- Add per-rule response delay controls.
+- Add JSON format and validation actions for response headers and body.
+
 ## 0.1.7
 
 - Add an in-page mock status badge.

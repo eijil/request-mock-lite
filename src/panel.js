@@ -25,6 +25,7 @@ const els = {
   ruleMethod: document.querySelector("#ruleMethod"),
   ruleMatchType: document.querySelector("#ruleMatchType"),
   ruleStatus: document.querySelector("#ruleStatus"),
+  ruleDelay: document.querySelector("#ruleDelay"),
   ruleUrlPattern: document.querySelector("#ruleUrlPattern"),
   ruleHeaders: document.querySelector("#ruleHeaders"),
   ruleBody: document.querySelector("#ruleBody"),
@@ -124,6 +125,15 @@ function bindEvents() {
   els.captureSearch.addEventListener("input", renderCaptured);
   els.exportBtn.addEventListener("click", exportRules);
   els.importInput.addEventListener("change", importRules);
+  document.querySelectorAll("[data-delay]").forEach((button) => {
+    button.addEventListener("click", () => {
+      els.ruleDelay.value = button.dataset.delay;
+    });
+  });
+  document.querySelector("#formatHeadersBtn").addEventListener("click", () => formatJsonField(els.ruleHeaders, "Response headers"));
+  document.querySelector("#validateHeadersBtn").addEventListener("click", () => validateJsonField(els.ruleHeaders, "Response headers"));
+  document.querySelector("#formatBodyBtn").addEventListener("click", () => formatJsonField(els.ruleBody, "Response body"));
+  document.querySelector("#validateBodyBtn").addEventListener("click", () => validateJsonField(els.ruleBody, "Response body"));
 
   els.ruleForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -238,7 +248,7 @@ function renderRules() {
         </label>
         <div>
           <div class="rule-title">${escapeHtml(rule.name)}</div>
-          <div class="meta"><span class="method">${rule.method}</span> · ${rule.matchType} · <span class="status ${rule.status >= 400 ? "error" : ""}">${rule.status}</span></div>
+          <div class="meta"><span class="method">${rule.method}</span> · ${rule.matchType} · <span class="status ${rule.status >= 400 ? "error" : ""}">${rule.status}</span>${rule.delayMs ? ` · ${formatDelay(rule.delayMs)} delay` : ""}</div>
         </div>
         <span class="badge">${rule.enabled && group.enabled ? "active" : "off"}</span>
       </div>
@@ -352,6 +362,7 @@ function openRuleDialog(rule = null, capturedRequest = null) {
   els.ruleMethod.value = rule?.method || capturedRequest?.method || "GET";
   els.ruleMatchType.value = rule?.matchType || (capturedRequest ? "path" : "exact");
   els.ruleStatus.value = rule?.status || capturedRequest?.status || 200;
+  els.ruleDelay.value = rule?.delayMs || 0;
   els.ruleUrlPattern.value = rule?.urlPattern || patternFromCapturedUrl(capturedRequest?.url) || "";
   els.ruleHeaders.value = JSON.stringify(headers, null, 2);
   els.ruleBody.value = prettyBody(body);
@@ -384,6 +395,15 @@ async function saveRuleFromDialog() {
     return;
   }
 
+  if (shouldValidateBodyJson(els.ruleBody.value, headers) &&
+    !validateJsonText(els.ruleBody.value, "Response body", { allowEmpty: true })) return;
+
+  const delayMs = Number(els.ruleDelay.value || 0);
+  if (!Number.isFinite(delayMs) || delayMs < 0) {
+    alert("Delay must be a non-negative number.");
+    return;
+  }
+
   const payload = {
     id: editingRuleId || crypto.randomUUID(),
     groupId: activeGroupId,
@@ -392,6 +412,7 @@ async function saveRuleFromDialog() {
     matchType: els.ruleMatchType.value,
     urlPattern: els.ruleUrlPattern.value.trim(),
     status: Number(els.ruleStatus.value),
+    delayMs,
     headers,
     body: els.ruleBody.value,
     enabled: els.ruleEnabled.checked,
@@ -418,6 +439,40 @@ function prettyBody(body) {
   } catch {
     return body;
   }
+}
+
+function formatJsonField(field, label) {
+  const value = field.value.trim();
+  if (!value) return;
+  try {
+    field.value = JSON.stringify(JSON.parse(value), null, 2);
+  } catch (error) {
+    alert(`${label} is not valid JSON.\n\n${error.message}`);
+  }
+}
+
+function validateJsonField(field, label) {
+  if (validateJsonText(field.value, label, { allowEmpty: true })) {
+    alert(`${label} is valid JSON.`);
+  }
+}
+
+function validateJsonText(value, label, options = {}) {
+  const text = value.trim();
+  if (!text && options.allowEmpty) return true;
+  try {
+    JSON.parse(text);
+    return true;
+  } catch (error) {
+    alert(`${label} must be valid JSON.\n\n${error.message}`);
+    return false;
+  }
+}
+
+function shouldValidateBodyJson(body, headers) {
+  const contentType = String(headers["content-type"] || headers["Content-Type"] || "").toLowerCase();
+  const text = body.trim();
+  return contentType.includes("json") || text.startsWith("{") || text.startsWith("[");
 }
 
 function exportRules() {
@@ -478,6 +533,11 @@ function formatBytes(size) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatDelay(delayMs) {
+  if (delayMs < 1000) return `${delayMs}ms`;
+  return `${delayMs / 1000}s`;
 }
 
 function escapeHtml(value) {

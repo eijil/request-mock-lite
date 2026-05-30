@@ -117,6 +117,17 @@
             Status
             <input id="ruleStatus" name="status" type="number" min="100" max="599" value="200" required>
           </label>
+          <label>
+            Delay
+            <input id="ruleDelay" name="delay" type="number" min="0" max="120000" step="100" value="0">
+          </label>
+        </div>
+
+        <div class="delay-presets" aria-label="Delay presets">
+          <button type="button" class="preset-btn" data-delay="0">0ms</button>
+          <button type="button" class="preset-btn" data-delay="500">500ms</button>
+          <button type="button" class="preset-btn" data-delay="2000">2s</button>
+          <button type="button" class="preset-btn" data-delay="5000">5s</button>
         </div>
 
         <label>
@@ -124,13 +135,25 @@
           <input id="ruleUrlPattern" name="urlPattern" required spellcheck="false">
         </label>
 
-        <label>
-          Response headers JSON
+        <label class="json-field">
+          <span class="label-row">
+            <span>Response headers JSON</span>
+            <span class="field-actions">
+              <button id="formatHeadersBtn" type="button" class="mini-btn">Format</button>
+              <button id="validateHeadersBtn" type="button" class="mini-btn">Validate</button>
+            </span>
+          </span>
           <textarea id="ruleHeaders" name="headers" rows="4" spellcheck="false" placeholder='{"content-type":"application/json"}'></textarea>
         </label>
 
-        <label>
-          Response body
+        <label class="json-field">
+          <span class="label-row">
+            <span>Response body</span>
+            <span class="field-actions">
+              <button id="formatBodyBtn" type="button" class="mini-btn">Format</button>
+              <button id="validateBodyBtn" type="button" class="mini-btn">Validate</button>
+            </span>
+          </span>
           <textarea id="ruleBody" name="body" rows="12" spellcheck="false"></textarea>
         </label>
 

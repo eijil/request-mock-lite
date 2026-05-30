@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Request Mock Lite toggle icon">
-  <rect width="128" height="128" rx="32" fill="#111315"/>
-  <rect x="23" y="42" width="82" height="44" rx="22" fill="#58c4b6"/>
-  <circle cx="82" cy="64" r="17" fill="#f4f0e8"/>
-  <path d="M33 31h28M67 97h28" fill="none" stroke="#e85d40" stroke-width="8" stroke-linecap="round"/>
-  <path d="M40 64h24" fill="none" stroke="#111315" stroke-width="8" stroke-linecap="round" opacity=".72"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Request Mock Lite transparent toggle icon">
+  <path d="M28 31h28M72 97h28" fill="none" stroke="#e85d40" stroke-width="9" stroke-linecap="round"/>
+  <rect x="22" y="40" width="84" height="48" rx="24" fill="#111315"/>
+  <rect x="28" y="46" width="72" height="36" rx="18" fill="#58c4b6"/>
+  <circle cx="82" cy="64" r="16" fill="#f4f0e8"/>
+  <path d="M42 64h24" fill="none" stroke="#111315" stroke-width="8" stroke-linecap="round" opacity=".78"/>
 </svg>

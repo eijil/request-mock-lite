@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Request Mock Lite">
+  <rect width="128" height="128" rx="24" fill="#111315"/>
+  <path d="M24 40h80v48H24z" fill="#f3efe6"/>
+  <path d="M33 52h34M33 64h56M33 76h42" stroke="#111315" stroke-width="7" stroke-linecap="round"/>
+  <path d="M84 34l22 30-22 30" fill="none" stroke="#e85d40" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

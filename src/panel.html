@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Request Mock Lite</title>
+    <link rel="stylesheet" href="panel.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <h1>Request Mock Lite</h1>
+          <p>Capture requests, pin a response, switch rules on when you need them.</p>
+        </div>
+        <div id="contextNotice" class="context-notice" hidden>
+          Extension reloaded. Reopen DevTools.
+        </div>
+        <div class="top-actions">
+          <button id="exportBtn" class="tool-btn" title="Export rules" aria-label="Export rules">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v3h14v-3"/>
+            </svg>
+            <span>Export</span>
+          </button>
+          <label class="tool-btn import-label" title="Import rules" aria-label="Import rules">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M12 21V10m0 0 4 4m-4-4-4 4M5 7V4h14v3"/>
+            </svg>
+            <span>Import</span>
+            <input id="importInput" type="file" accept="application/json">
+          </label>
+        </div>
+      </header>
+
+      <section class="workspace">
+        <aside class="groups-panel">
+          <div class="panel-heading">
+            <h2>Groups</h2>
+            <button id="addGroupBtn" class="small-btn">New</button>
+          </div>
+          <div id="groupsList" class="groups-list"></div>
+        </aside>
+
+        <section class="rules-panel">
+          <div class="panel-heading">
+            <div>
+              <h2 id="activeGroupName">Rules</h2>
+              <p id="activeGroupMeta"></p>
+            </div>
+            <div class="heading-actions">
+              <button id="renameGroupBtn" class="small-btn ghost">Rename</button>
+              <button id="deleteGroupBtn" class="small-btn ghost">Delete</button>
+              <button id="addRuleBtn" class="small-btn">Blank rule</button>
+            </div>
+          </div>
+          <div id="rulesList" class="rules-list"></div>
+        </section>
+
+        <section class="capture-panel">
+          <div class="panel-heading">
+            <div>
+              <h2>Captured</h2>
+              <p id="captureStateText">Fetch/XHR from this tab</p>
+            </div>
+            <div class="capture-heading-actions">
+              <label class="capture-toggle">
+                <input id="captureToggle" type="checkbox" checked>
+                <span></span>
+              </label>
+              <button id="clearCapturedBtn" class="small-btn ghost">Clear</button>
+            </div>
+          </div>
+          <input id="captureSearch" class="search" type="search" placeholder="Filter URL or method">
+          <div id="capturedList" class="captured-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="ruleDialog" class="rule-dialog">
+      <form method="dialog" id="ruleForm">
+        <header class="dialog-head">
+          <div>
+            <h2 id="dialogTitle">Mock rule</h2>
+            <p id="dialogHint">Exact URL matching is safest for captured APIs.</p>
+          </div>
+          <button id="closeDialogBtn" class="icon-btn close-btn" type="button" title="Close" aria-label="Close">×</button>
+        </header>
+
+        <div class="form-grid">
+          <label>
+            Name
+            <input id="ruleName" name="name" required>
+          </label>
+          <label>
+            Method
+            <select id="ruleMethod" name="method">
+              <option value="ANY">ANY</option>
+              <option>GET</option>
+              <option>POST</option>
+              <option>PUT</option>
+              <option>PATCH</option>
+              <option>DELETE</option>
+              <option>OPTIONS</option>
+            </select>
+          </label>
+          <label>
+            Match
+            <select id="ruleMatchType" name="matchType">
+              <option value="path">Origin + path</option>
+              <option value="exact">Exact URL</option>
+              <option value="contains">Contains</option>
+              <option value="regex">Regex</option>
+            </select>
+          </label>
+          <label>
+            Status
+            <input id="ruleStatus" name="status" type="number" min="100" max="599" value="200" required>
+          </label>
+        </div>
+
+        <label>
+          URL pattern
+          <input id="ruleUrlPattern" name="urlPattern" required spellcheck="false">
+        </label>
+
+        <label>
+          Response headers JSON
+          <textarea id="ruleHeaders" name="headers" rows="4" spellcheck="false" placeholder='{"content-type":"application/json"}'></textarea>
+        </label>
+
+        <label>
+          Response body
+          <textarea id="ruleBody" name="body" rows="12" spellcheck="false"></textarea>
+        </label>
+
+        <footer class="dialog-actions">
+          <label class="toggle">
+            <input id="ruleEnabled" type="checkbox" checked>
+            <span>Enabled</span>
+          </label>
+          <div>
+            <button id="cancelRuleBtn" type="button" class="small-btn ghost">Cancel</button>
+            <button id="saveRuleBtn" type="submit" class="small-btn primary">Save rule</button>
+          </div>
+        </footer>
+      </form>
+    </dialog>
+
+    <script src="panel.js"></script>
+  </body>
+</html>

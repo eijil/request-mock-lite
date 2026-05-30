@@ -87,75 +87,102 @@
           <button id="closeDialogBtn" class="icon-btn close-btn" type="button" title="Close" aria-label="Close">×</button>
         </header>
 
-        <div class="form-grid">
-          <label>
-            Name
-            <input id="ruleName" name="name" required>
-          </label>
-          <label>
-            Method
-            <select id="ruleMethod" name="method">
-              <option value="ANY">ANY</option>
-              <option>GET</option>
-              <option>POST</option>
-              <option>PUT</option>
-              <option>PATCH</option>
-              <option>DELETE</option>
-              <option>OPTIONS</option>
-            </select>
-          </label>
-          <label>
-            Match
-            <select id="ruleMatchType" name="matchType">
-              <option value="path">Origin + path</option>
-              <option value="exact">Exact URL</option>
-              <option value="contains">Contains</option>
-              <option value="regex">Regex</option>
-            </select>
-          </label>
-          <label>
-            Status
-            <input id="ruleStatus" name="status" type="number" min="100" max="599" value="200" required>
-          </label>
-          <label>
-            Delay
-            <input id="ruleDelay" name="delay" type="number" min="0" max="120000" step="100" value="0">
-          </label>
-        </div>
+        <div class="dialog-body">
+          <div class="form-grid">
+            <label>
+              Name
+              <input id="ruleName" name="name" required>
+            </label>
+            <label>
+              Method
+              <select id="ruleMethod" name="method">
+                <option value="ANY">ANY</option>
+                <option>GET</option>
+                <option>POST</option>
+                <option>PUT</option>
+                <option>PATCH</option>
+                <option>DELETE</option>
+                <option>OPTIONS</option>
+              </select>
+            </label>
+            <label>
+              Match
+              <select id="ruleMatchType" name="matchType">
+                <option value="path">Origin + path</option>
+                <option value="exact">Exact URL</option>
+                <option value="contains">Contains</option>
+                <option value="regex">Regex</option>
+              </select>
+            </label>
+            <label>
+              Status
+              <input id="ruleStatus" name="status" type="number" min="100" max="599" value="200" required>
+            </label>
+            <label>
+              Delay
+              <span class="delay-control">
+                <select id="ruleDelayPreset" name="delayPreset">
+                  <option value="0">No delay</option>
+                  <option value="500">500ms</option>
+                  <option value="1000">1000ms</option>
+                  <option value="2000">2000ms</option>
+                  <option value="5000">5000ms</option>
+                  <option value="10000">10000ms</option>
+                  <option value="custom">Custom</option>
+                </select>
+                <input id="ruleDelay" name="delay" type="number" min="0" max="120000" step="100" value="0" aria-label="Delay in milliseconds">
+                <span class="unit-label">ms</span>
+              </span>
+            </label>
+          </div>
 
-        <div class="delay-presets" aria-label="Delay presets">
-          <button type="button" class="preset-btn" data-delay="0">0ms</button>
-          <button type="button" class="preset-btn" data-delay="500">500ms</button>
-          <button type="button" class="preset-btn" data-delay="2000">2s</button>
-          <button type="button" class="preset-btn" data-delay="5000">5s</button>
-        </div>
+          <label>
+            URL pattern
+            <input id="ruleUrlPattern" name="urlPattern" required spellcheck="false">
+          </label>
 
-        <label>
-          URL pattern
-          <input id="ruleUrlPattern" name="urlPattern" required spellcheck="false">
-        </label>
-
-        <label class="json-field">
-          <span class="label-row">
-            <span>Response headers JSON</span>
-            <span class="field-actions">
-              <button id="formatHeadersBtn" type="button" class="mini-btn">Format</button>
-              <button id="validateHeadersBtn" type="button" class="mini-btn">Validate</button>
+          <div class="field-block json-field">
+            <span class="label-row">
+              <span>Response headers JSON</span>
+              <span class="field-actions">
+                <button id="formatHeadersBtn" type="button" class="mini-btn" title="Format JSON" aria-label="Format response headers JSON">
+                  <svg aria-hidden="true" viewBox="0 0 24 24">
+                    <path d="M8 4H6a2 2 0 0 0-2 2v3a2 2 0 0 1-2 2 2 2 0 0 1 2 2v3a2 2 0 0 0 2 2h2"/>
+                    <path d="M16 4h2a2 2 0 0 1 2 2v3a2 2 0 0 0 2 2 2 2 0 0 0-2 2v3a2 2 0 0 1-2 2h-2"/>
+                  </svg>
+                </button>
+              </span>
             </span>
-          </span>
-          <textarea id="ruleHeaders" name="headers" rows="4" spellcheck="false" placeholder='{"content-type":"application/json"}'></textarea>
-        </label>
+            <textarea id="ruleHeaders" name="headers" rows="4" spellcheck="false" placeholder='{"content-type":"application/json"}'></textarea>
+          </div>
 
-        <label class="json-field">
-          <span class="label-row">
-            <span>Response body</span>
-            <span class="field-actions">
-              <button id="formatBodyBtn" type="button" class="mini-btn">Format</button>
-              <button id="validateBodyBtn" type="button" class="mini-btn">Validate</button>
+          <div class="field-block json-field response-body-field">
+            <span class="label-row">
+              <span>Response body</span>
+              <span class="field-actions">
+                <button id="templateHelpBtn" type="button" class="mini-btn" title="Template playground" aria-label="Open template playground">
+                  <svg aria-hidden="true" viewBox="0 0 24 24">
+                    <path d="M9.1 9a3 3 0 1 1 4.9 2.3c-.8.5-1.4 1.1-1.4 2.2M12 17h.01"/>
+                    <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z"/>
+                  </svg>
+                </button>
+                <button id="expandBodyBtn" type="button" class="mini-btn" title="Fullscreen editor" aria-label="Open fullscreen editor">
+                  <svg aria-hidden="true" viewBox="0 0 24 24">
+                    <path d="M8 3H3v5M16 3h5v5M21 16v5h-5M3 16v5h5"/>
+                  </svg>
+                </button>
+                <button id="formatBodyBtn" type="button" class="mini-btn" title="Format JSON" aria-label="Format response body JSON">
+                  <svg aria-hidden="true" viewBox="0 0 24 24">
+                    <path d="M8 4H6a2 2 0 0 0-2 2v3a2 2 0 0 1-2 2 2 2 0 0 1 2 2v3a2 2 0 0 0 2 2h2"/>
+                    <path d="M16 4h2a2 2 0 0 1 2 2v3a2 2 0 0 0 2 2 2 2 0 0 0-2 2v3a2 2 0 0 1-2 2h-2"/>
+                  </svg>
+                </button>
+              </span>
             </span>
-          </span>
-          <textarea id="ruleBody" name="body" rows="12" spellcheck="false"></textarea>
-        </label>
+            <div id="ruleBodyEditor" class="code-editor"></div>
+            <textarea id="ruleBody" name="body" rows="12" spellcheck="false" hidden></textarea>
+          </div>
+        </div>
 
         <footer class="dialog-actions">
           <label class="toggle">
@@ -170,6 +197,78 @@
       </form>
     </dialog>
 
+    <dialog id="fullscreenEditorDialog" class="fullscreen-dialog">
+      <section class="fullscreen-editor">
+        <header class="dialog-head">
+          <div>
+            <h2>Response body</h2>
+            <p>Large editor view for JSON responses.</p>
+          </div>
+          <button id="closeFullscreenBtn" class="icon-btn close-btn" type="button" title="Close" aria-label="Close">×</button>
+        </header>
+        <div class="fullscreen-toolbar">
+          <button id="fullscreenHelpBtn" type="button" class="mini-btn" title="Template playground" aria-label="Open template playground">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M9.1 9a3 3 0 1 1 4.9 2.3c-.8.5-1.4 1.1-1.4 2.2M12 17h.01"/>
+              <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z"/>
+            </svg>
+          </button>
+          <button id="fullscreenFormatBtn" type="button" class="mini-btn" title="Format JSON" aria-label="Format response body JSON">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M8 4H6a2 2 0 0 0-2 2v3a2 2 0 0 1-2 2 2 2 0 0 1 2 2v3a2 2 0 0 0 2 2h2"/>
+              <path d="M16 4h2a2 2 0 0 1 2 2v3a2 2 0 0 0 2 2 2 2 0 0 0-2 2v3a2 2 0 0 1-2 2h-2"/>
+            </svg>
+          </button>
+        </div>
+        <div id="fullscreenBodyEditor" class="fullscreen-code-editor"></div>
+        <footer class="dialog-actions">
+          <span></span>
+          <div>
+            <button id="cancelFullscreenBtn" type="button" class="small-btn ghost">Cancel</button>
+            <button id="applyFullscreenBtn" type="button" class="small-btn primary">Apply</button>
+          </div>
+        </footer>
+      </section>
+    </dialog>
+
+    <dialog id="templatePlaygroundDialog" class="playground-dialog">
+      <section class="playground-panel">
+        <header class="dialog-head">
+          <div>
+            <h2>Template playground</h2>
+            <p>Try template variables on the left and preview the mocked response on the right.</p>
+          </div>
+          <button id="closePlaygroundBtn" class="icon-btn close-btn" type="button" title="Close" aria-label="Close">×</button>
+        </header>
+        <div class="playground-grid">
+          <label class="playground-column">
+            <span>Template JSON</span>
+            <textarea id="playgroundInput" spellcheck="false"></textarea>
+          </label>
+          <label class="playground-column">
+            <span>Rendered preview</span>
+            <textarea id="playgroundOutput" spellcheck="false" readonly></textarea>
+          </label>
+        </div>
+        <div id="templateTokenGrid" class="help-grid" aria-label="Template variables">
+          <button type="button" class="token-chip" data-token="{{uuid}}" title="Copy">{{uuid}}</button>
+          <button type="button" class="token-chip" data-token="{{timestamp}}" title="Copy">{{timestamp}}</button>
+          <button type="button" class="token-chip" data-token="{{isoDate}}" title="Copy">{{isoDate}}</button>
+          <button type="button" class="token-chip" data-token="{{randomInt(1,100)}}" title="Copy">{{randomInt(1,100)}}</button>
+          <button type="button" class="token-chip" data-token="{{randomFloat(0,1,2)}}" title="Copy">{{randomFloat(0,1,2)}}</button>
+          <button type="button" class="token-chip" data-token="{{boolean}}" title="Copy">{{boolean}}</button>
+          <button type="button" class="token-chip" data-token="{{name}}" title="Copy">{{name}}</button>
+          <button type="button" class="token-chip" data-token="{{email}}" title="Copy">{{email}}</button>
+          <button type="button" class="token-chip" data-token="{{request.url}}" title="Copy">{{request.url}}</button>
+          <button type="button" class="token-chip" data-token="{{request.path}}" title="Copy">{{request.path}}</button>
+          <button type="button" class="token-chip" data-token="{{request.method}}" title="Copy">{{request.method}}</button>
+          <button type="button" class="token-chip" data-token="{{request.query.xxx}}" title="Copy">{{request.query.xxx}}</button>
+        </div>
+        <p id="copyTokenFeedback" class="copy-feedback" aria-live="polite"></p>
+      </section>
+    </dialog>
+
+    <script src="vendor/codemirror.bundle.js"></script>
     <script src="panel.js"></script>
   </body>
 </html>

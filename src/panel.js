@@ -25,10 +25,18 @@ const els = {
   ruleMethod: document.querySelector("#ruleMethod"),
   ruleMatchType: document.querySelector("#ruleMatchType"),
   ruleStatus: document.querySelector("#ruleStatus"),
+  ruleDelayPreset: document.querySelector("#ruleDelayPreset"),
   ruleDelay: document.querySelector("#ruleDelay"),
   ruleUrlPattern: document.querySelector("#ruleUrlPattern"),
   ruleHeaders: document.querySelector("#ruleHeaders"),
   ruleBody: document.querySelector("#ruleBody"),
+  ruleBodyEditor: document.querySelector("#ruleBodyEditor"),
+  fullscreenDialog: document.querySelector("#fullscreenEditorDialog"),
+  fullscreenBodyEditor: document.querySelector("#fullscreenBodyEditor"),
+  playgroundDialog: document.querySelector("#templatePlaygroundDialog"),
+  playgroundInput: document.querySelector("#playgroundInput"),
+  playgroundOutput: document.querySelector("#playgroundOutput"),
+  copyTokenFeedback: document.querySelector("#copyTokenFeedback"),
   ruleEnabled: document.querySelector("#ruleEnabled"),
   saveRuleBtn: document.querySelector("#saveRuleBtn")
 };
@@ -37,6 +45,9 @@ let state = makeDefaultState();
 let activeGroupId = state.groups[0].id;
 let captured = [];
 let editingRuleId = null;
+let bodyEditor = null;
+let fullscreenEditor = null;
+let fullscreenOriginalBody = "";
 
 init();
 
@@ -113,6 +124,12 @@ function bindEvents() {
   els.deleteGroupBtn.addEventListener("click", deleteActiveGroup);
   document.querySelector("#closeDialogBtn").addEventListener("click", () => els.dialog.close());
   document.querySelector("#cancelRuleBtn").addEventListener("click", () => els.dialog.close());
+  document.querySelector("#closeFullscreenBtn").addEventListener("click", closeFullscreenEditor);
+  document.querySelector("#cancelFullscreenBtn").addEventListener("click", cancelFullscreenEditor);
+  document.querySelector("#applyFullscreenBtn").addEventListener("click", applyFullscreenEditor);
+  document.querySelector("#closePlaygroundBtn").addEventListener("click", closeTemplatePlayground);
+  els.playgroundInput.addEventListener("input", renderTemplatePlayground);
+  document.querySelector("#templateTokenGrid").addEventListener("click", copyTemplateToken);
   els.clearCapturedBtn.addEventListener("click", () => {
     captured = [];
     renderCaptured();
@@ -125,19 +142,39 @@ function bindEvents() {
   els.captureSearch.addEventListener("input", renderCaptured);
   els.exportBtn.addEventListener("click", exportRules);
   els.importInput.addEventListener("change", importRules);
-  document.querySelectorAll("[data-delay]").forEach((button) => {
-    button.addEventListener("click", () => {
-      els.ruleDelay.value = button.dataset.delay;
-    });
+  els.ruleDelayPreset.addEventListener("change", () => {
+    if (els.ruleDelayPreset.value !== "custom") {
+      els.ruleDelay.value = els.ruleDelayPreset.value;
+    }
   });
+  els.ruleDelay.addEventListener("input", () => {
+    syncDelayPreset(Number(els.ruleDelay.value || 0));
+  });
+  document.querySelector("#templateHelpBtn").addEventListener("click", openTemplatePlayground);
+  document.querySelector("#expandBodyBtn").addEventListener("click", openFullscreenEditor);
   document.querySelector("#formatHeadersBtn").addEventListener("click", () => formatJsonField(els.ruleHeaders, "Response headers"));
-  document.querySelector("#validateHeadersBtn").addEventListener("click", () => validateJsonField(els.ruleHeaders, "Response headers"));
-  document.querySelector("#formatBodyBtn").addEventListener("click", () => formatJsonField(els.ruleBody, "Response body"));
-  document.querySelector("#validateBodyBtn").addEventListener("click", () => validateJsonField(els.ruleBody, "Response body"));
+  document.querySelector("#formatBodyBtn").addEventListener("click", () => formatBodyEditor(bodyEditor, "Response body"));
+  document.querySelector("#fullscreenHelpBtn").addEventListener("click", openTemplatePlayground);
+  document.querySelector("#fullscreenFormatBtn").addEventListener("click", () => formatBodyEditor(fullscreenEditor, "Response body"));
 
   els.ruleForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     await saveRuleFromDialog();
+  });
+}
+
+function ensureEditors() {
+  if (bodyEditor || !window.RequestMockLiteEditor) return;
+  bodyEditor = window.RequestMockLiteEditor.create({
+    parent: els.ruleBodyEditor,
+    doc: els.ruleBody.value,
+    onChange: (value) => {
+      els.ruleBody.value = value;
+    }
+  });
+  fullscreenEditor = window.RequestMockLiteEditor.create({
+    parent: els.fullscreenBodyEditor,
+    doc: ""
   });
 }
 
@@ -362,12 +399,14 @@ function openRuleDialog(rule = null, capturedRequest = null) {
   els.ruleMethod.value = rule?.method || capturedRequest?.method || "GET";
   els.ruleMatchType.value = rule?.matchType || (capturedRequest ? "path" : "exact");
   els.ruleStatus.value = rule?.status || capturedRequest?.status || 200;
-  els.ruleDelay.value = rule?.delayMs || 0;
+  setDelayValue(rule?.delayMs || 0);
   els.ruleUrlPattern.value = rule?.urlPattern || patternFromCapturedUrl(capturedRequest?.url) || "";
   els.ruleHeaders.value = JSON.stringify(headers, null, 2);
-  els.ruleBody.value = prettyBody(body);
+  setBodyValue(prettyBody(body));
   els.ruleEnabled.checked = rule?.enabled ?? true;
   els.dialog.showModal();
+  ensureEditors();
+  bodyEditor.focus();
 }
 
 function deriveHeaders(capturedRequest) {
@@ -395,8 +434,10 @@ async function saveRuleFromDialog() {
     return;
   }
 
-  if (shouldValidateBodyJson(els.ruleBody.value, headers) &&
-    !validateJsonText(els.ruleBody.value, "Response body", { allowEmpty: true })) return;
+  const body = getBodyValue();
+  const responseMode = hasTemplateTokens(body) ? "template" : "static";
+  if (!hasTemplateTokens(body) && shouldValidateBodyJson(body, headers) &&
+    !validateJsonText(body, "Response body", { allowEmpty: true })) return;
 
   const delayMs = Number(els.ruleDelay.value || 0);
   if (!Number.isFinite(delayMs) || delayMs < 0) {
@@ -414,7 +455,8 @@ async function saveRuleFromDialog() {
     status: Number(els.ruleStatus.value),
     delayMs,
     headers,
-    body: els.ruleBody.value,
+    responseMode,
+    body,
     enabled: els.ruleEnabled.checked,
     createdAt: Date.now()
   };
@@ -441,6 +483,185 @@ function prettyBody(body) {
   }
 }
 
+function setDelayValue(delayMs) {
+  els.ruleDelay.value = String(delayMs || 0);
+  syncDelayPreset(delayMs || 0);
+}
+
+function syncDelayPreset(delayMs) {
+  const value = String(delayMs || 0);
+  const option = Array.from(els.ruleDelayPreset.options).find((item) => item.value === value);
+  els.ruleDelayPreset.value = option ? value : "custom";
+}
+
+function getBodyValue(editor = bodyEditor) {
+  return editor?.getValue() ?? els.ruleBody.value;
+}
+
+function setBodyValue(value, editor = bodyEditor) {
+  els.ruleBody.value = value || "";
+  if (editor) editor.setValue(value || "");
+}
+
+function hasTemplateTokens(value) {
+  return /\{\{\s*[^{}]+?\s*\}\}/.test(value || "");
+}
+
+function formatBodyEditor(editor, label) {
+  const value = getBodyValue(editor).trim();
+  if (!value) return;
+  try {
+    const formatted = JSON.stringify(JSON.parse(value), null, 2);
+    setBodyValue(formatted, editor);
+  } catch (error) {
+    alert(`${label} is not valid JSON.\n\n${error.message}`);
+  }
+}
+
+function openFullscreenEditor() {
+  ensureEditors();
+  fullscreenOriginalBody = getBodyValue();
+  fullscreenEditor.setValue(fullscreenOriginalBody);
+  els.fullscreenDialog.showModal();
+  fullscreenEditor.view?.requestMeasure?.();
+  fullscreenEditor.focus();
+}
+
+function closeFullscreenEditor() {
+  els.fullscreenDialog.close();
+}
+
+function cancelFullscreenEditor() {
+  fullscreenEditor.setValue(fullscreenOriginalBody);
+  els.fullscreenDialog.close();
+}
+
+function applyFullscreenEditor() {
+  setBodyValue(fullscreenEditor.getValue());
+  els.fullscreenDialog.close();
+  bodyEditor.focus();
+}
+
+function openTemplatePlayground() {
+  els.playgroundInput.value = sampleTemplateBody();
+  renderTemplatePlayground();
+  els.playgroundDialog.showModal();
+  els.playgroundInput.focus();
+}
+
+function closeTemplatePlayground() {
+  els.playgroundDialog.close();
+}
+
+function renderTemplatePlayground() {
+  const body = els.playgroundInput.value;
+  const preview = hasTemplateTokens(body)
+    ? resolveTemplateBody(body, sampleRequest())
+    : body;
+  els.playgroundOutput.value = prettyBody(preview);
+}
+
+function resolveTemplateBody(body, request) {
+  return body.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (_match, token) => {
+    const value = resolveTemplateToken(token, request);
+    return value == null ? _match : String(value);
+  });
+}
+
+function resolveTemplateToken(token, request) {
+  const normalized = String(token || "").trim();
+  if (normalized === "uuid") return crypto.randomUUID();
+  if (normalized === "timestamp") return Date.now();
+  if (normalized === "isoDate") return new Date().toISOString();
+  if (normalized === "boolean") return Math.random() >= 0.5;
+  if (normalized === "name") return randomFrom(["Alex Chen", "Maya Patel", "Sam Rivera", "Nora Lee"]);
+  if (normalized === "email") return `mock.${randomInt(100, 999)}@example.com`;
+  if (normalized.startsWith("randomInt(") && normalized.endsWith(")")) {
+    const [min, max] = normalized.slice(10, -1).split(",").map((item) => Number(item.trim()));
+    return randomInt(Number.isFinite(min) ? min : 0, Number.isFinite(max) ? max : 100);
+  }
+  if (normalized.startsWith("randomFloat(") && normalized.endsWith(")")) {
+    const [min, max, decimals] = normalized.slice(12, -1).split(",").map((item) => Number(item.trim()));
+    return randomFloat(
+      Number.isFinite(min) ? min : 0,
+      Number.isFinite(max) ? max : 1,
+      Number.isFinite(decimals) ? decimals : 2
+    );
+  }
+  if (normalized === "request.url") return request.url;
+  if (normalized === "request.method") return request.method;
+  if (normalized === "request.path") return new URL(request.url).pathname;
+  if (normalized.startsWith("request.query.")) {
+    return new URL(request.url).searchParams.get(normalized.slice("request.query.".length)) || "";
+  }
+  return undefined;
+}
+
+function sampleRequest() {
+  return {
+    method: els.ruleMethod.value === "ANY" ? "GET" : els.ruleMethod.value,
+    url: "https://example.com/api/users?page=1&id=42"
+  };
+}
+
+function sampleTemplateBody() {
+  return `{
+  "uuid": "{{uuid}}",
+  "timestamp": {{timestamp}},
+  "isoDate": "{{isoDate}}",
+  "randomInt": {{randomInt(1,100)}},
+  "randomFloat": {{randomFloat(0,1,2)}},
+  "boolean": {{boolean}},
+  "profile": {
+    "name": "{{name}}",
+    "email": "{{email}}"
+  },
+  "request": {
+    "url": "{{request.url}}",
+    "method": "{{request.method}}",
+    "path": "{{request.path}}",
+    "page": "{{request.query.page}}"
+  }
+}`;
+}
+
+function randomInt(min, max) {
+  const low = Math.ceil(Math.min(min, max));
+  const high = Math.floor(Math.max(min, max));
+  return Math.floor(Math.random() * (high - low + 1)) + low;
+}
+
+function randomFloat(min, max, decimals) {
+  const low = Math.min(min, max);
+  const high = Math.max(min, max);
+  const precision = Math.max(0, Math.min(8, Math.trunc(decimals)));
+  return Number((Math.random() * (high - low) + low).toFixed(precision));
+}
+
+function randomFrom(items) {
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+async function copyTemplateToken(event) {
+  const tokenEl = event.target.closest("[data-token]");
+  if (!tokenEl) return;
+  const token = tokenEl.dataset.token;
+  try {
+    await navigator.clipboard.writeText(token);
+    tokenEl.dataset.copied = "true";
+    els.copyTokenFeedback.textContent = `Copied ${token}`;
+    window.setTimeout(() => {
+      delete tokenEl.dataset.copied;
+      if (els.copyTokenFeedback.textContent === `Copied ${token}`) {
+        els.copyTokenFeedback.textContent = "";
+      }
+    }, 900);
+  } catch (error) {
+    els.copyTokenFeedback.textContent = "Copy failed";
+    console.warn("[Request Mock Lite] failed to copy template token", error);
+  }
+}
+
 function formatJsonField(field, label) {
   const value = field.value.trim();
   if (!value) return;
@@ -448,12 +669,6 @@ function formatJsonField(field, label) {
     field.value = JSON.stringify(JSON.parse(value), null, 2);
   } catch (error) {
     alert(`${label} is not valid JSON.\n\n${error.message}`);
-  }
-}
-
-function validateJsonField(field, label) {
-  if (validateJsonText(field.value, label, { allowEmpty: true })) {
-    alert(`${label} is valid JSON.`);
   }
 }
 

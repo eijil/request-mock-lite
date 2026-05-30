@@ -21,11 +21,38 @@
 
   window.__requestMockLite = {
     installed: true,
-    version: "0.1.7",
+    version: "0.1.9-dev",
     state: () => mockState,
     ready: () => hasReceivedRules,
     activeRules: () => activeRules(),
-    test: (url, method = "GET") => findMock(absolutizeUrl(url), String(method).toUpperCase())
+    test: (url, method = "GET") => findMock(absolutizeUrl(url), String(method).toUpperCase()),
+    renderTemplate: (body, url = window.location.href, method = "GET") => {
+      const request = {
+        url: absolutizeUrl(url),
+        method: String(method || "GET").toUpperCase()
+      };
+      return resolveResponseBody({ body, responseMode: "template" }, request);
+    },
+    debugRule: (url, method = "GET") => {
+      const request = {
+        url: absolutizeUrl(url),
+        method: String(method || "GET").toUpperCase()
+      };
+      const rule = findMock(request.url, request.method);
+      if (!rule) return null;
+      return {
+        name: rule.name,
+        enabled: rule.enabled,
+        method: rule.method,
+        status: rule.status,
+        matchType: rule.matchType,
+        urlPattern: rule.urlPattern,
+        responseMode: rule.responseMode || "static",
+        hasTemplateTokens: hasTemplateTokens(rule.body || ""),
+        rawBody: rule.body || "",
+        renderedBody: resolveResponseBody(rule, request)
+      };
+    }
   };
 
   window.postMessage({ type: READY_EVENT }, "*");
@@ -46,7 +73,7 @@
     if (!match) return nativeFetch.apply(this, arguments);
     logHit("fetch", request, match);
     await wait(match.delayMs || 0);
-    return new NativeResponse(match.body || "", {
+    return new NativeResponse(resolveResponseBody(match, request), {
       status: match.status || 200,
       headers: new NativeHeaders(safeResponseHeaders(match.headers || {}))
     });
@@ -99,7 +126,7 @@
         }
         logHit("xhr", request, match);
         this.__rmlMock = {
-          body: match.body || "",
+          body: resolveResponseBody(match, request),
           status: match.status || 200,
           headers: safeResponseHeaders(match.headers || {}),
           url: request.url
@@ -282,11 +309,101 @@
   }
 
   function logHit(kind, request, rule) {
+    const hasTokens = hasTemplateTokens(rule.body || "");
     console.info(
       `[Request Mock Lite] mocked ${kind.toUpperCase()} ${request.method} ${request.url}`,
-      { rule: rule.name, status: rule.status, matchType: rule.matchType }
+      {
+        rule: rule.name,
+        status: rule.status,
+        matchType: rule.matchType,
+        responseMode: rule.responseMode || "static",
+        hasTemplateTokens: hasTokens
+      }
     );
     showIndicatorHit(request, rule);
+  }
+
+  function resolveResponseBody(rule, request) {
+    const body = rule.body || "";
+    if (rule.responseMode !== "template" && !hasTemplateTokens(body)) return body;
+    return body.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (_match, token) => {
+      const value = resolveTemplateToken(token, request);
+      return value == null ? _match : String(value);
+    });
+  }
+
+  function hasTemplateTokens(value) {
+    return /\{\{\s*[^{}]+?\s*\}\}/.test(value || "");
+  }
+
+  function resolveTemplateToken(token, request) {
+    const normalized = String(token || "").trim();
+    if (normalized === "uuid") return randomUuid();
+    if (normalized === "timestamp") return Date.now();
+    if (normalized === "isoDate") return new Date().toISOString();
+    if (normalized === "boolean") return Math.random() >= 0.5;
+    if (normalized === "name") return randomFrom(["Alex Chen", "Maya Patel", "Sam Rivera", "Nora Lee", "Jordan Kim"]);
+    if (normalized === "email") return `${randomFrom(["alex", "maya", "sam", "nora", "jordan"])}.${randomInt(100, 999)}@example.com`;
+    if (normalized.startsWith("randomInt(") && normalized.endsWith(")")) {
+      const [min, max] = normalized.slice(10, -1).split(",").map((item) => Number(item.trim()));
+      return randomInt(Number.isFinite(min) ? min : 0, Number.isFinite(max) ? max : 100);
+    }
+    if (normalized.startsWith("randomFloat(") && normalized.endsWith(")")) {
+      const [min, max, decimals] = normalized.slice(12, -1).split(",").map((item) => Number(item.trim()));
+      return randomFloat(
+        Number.isFinite(min) ? min : 0,
+        Number.isFinite(max) ? max : 1,
+        Number.isFinite(decimals) ? decimals : 2
+      );
+    }
+    if (normalized === "request.url") return request.url;
+    if (normalized === "request.method") return request.method;
+    if (normalized === "request.path") return requestPath(request.url);
+    if (normalized.startsWith("request.query.")) {
+      return requestQuery(request.url).get(normalized.slice("request.query.".length)) || "";
+    }
+    return undefined;
+  }
+
+  function requestPath(url) {
+    try {
+      return new URL(url).pathname;
+    } catch {
+      return "";
+    }
+  }
+
+  function requestQuery(url) {
+    try {
+      return new URL(url).searchParams;
+    } catch {
+      return new URLSearchParams();
+    }
+  }
+
+  function randomUuid() {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
+      const value = Math.random() * 16 | 0;
+      return (char === "x" ? value : (value & 0x3 | 0x8)).toString(16);
+    });
+  }
+
+  function randomInt(min, max) {
+    const low = Math.ceil(Math.min(min, max));
+    const high = Math.floor(Math.max(min, max));
+    return Math.floor(Math.random() * (high - low + 1)) + low;
+  }
+
+  function randomFloat(min, max, decimals) {
+    const low = Math.min(min, max);
+    const high = Math.max(min, max);
+    const precision = Math.max(0, Math.min(8, Math.trunc(decimals)));
+    return Number((Math.random() * (high - low) + low).toFixed(precision));
+  }
+
+  function randomFrom(items) {
+    return items[Math.floor(Math.random() * items.length)];
   }
 
   function updateIndicator() {

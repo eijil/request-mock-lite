@@ -10,6 +10,15 @@
   const NativeHeaders = window.Headers;
   const NativeXMLHttpRequest = window.XMLHttpRequest;
 
+  try {
+    window.CSS?.registerProperty?.({
+      name: "--rml-beam-angle",
+      syntax: "<angle>",
+      initialValue: "0deg",
+      inherits: false
+    });
+  } catch (_) {}
+
   let mockState = { groups: [], rules: [] };
   let hasReceivedRules = false;
   let indicator = null;
@@ -446,6 +455,9 @@
     const root = host.attachShadow({ mode: "closed" });
     const style = document.createElement("style");
     style.textContent = `
+      @keyframes rml-border-beam {
+        to { --rml-beam-angle: 360deg; }
+      }
       :host {
         position: fixed;
         right: 14px;
@@ -459,7 +471,7 @@
         padding: 9px 11px;
         border: 1px solid rgba(88, 196, 182, .55);
         border-radius: 10px;
-        background: rgba(17, 20, 24, .92);
+        background: rgba(17, 20, 24, .62);
         box-shadow: 0 12px 36px rgba(0, 0, 0, .28);
         color: #f4f0e8;
         font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -493,6 +505,42 @@
         line-height: 1.2;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+      :host([data-hit="false"]) .badge {
+        position: relative;
+        border-color: transparent;
+      }
+      :host([data-hit="false"]) .badge::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        border-radius: inherit;
+        padding: 1px;
+        background: conic-gradient(
+          from var(--rml-beam-angle),
+          rgba(88, 196, 182, .45),
+          rgba(232, 93, 64, 1) 90deg,
+          rgba(88, 196, 182, .45) 180deg,
+          rgba(88, 196, 182, 1) 270deg,
+          rgba(88, 196, 182, .45) 360deg
+        );
+        -webkit-mask:
+          linear-gradient(#fff 0 0) content-box,
+          linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        animation: rml-border-beam 3s linear infinite;
+        pointer-events: none;
+      }
+      :host([data-hit="false"]) .badge > * {
+        position: relative;
+        z-index: 1;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        :host([data-hit="false"]) .badge::before {
+          animation: none;
+        }
       }
     `;
     const badge = document.createElement("div");

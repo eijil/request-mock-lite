@@ -1,6 +1,6 @@
 {
   "name": "request-mock-lite",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "A lightweight Chrome DevTools extension for capturing API requests and mocking fetch/XHR responses.",
   "private": true,
   "scripts": {

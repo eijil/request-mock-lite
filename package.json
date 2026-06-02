@@ -1,7 +1,7 @@
 {
   "name": "request-mock-lite",
-  "version": "0.1.10",
-  "description": "A lightweight Chrome DevTools extension for capturing API requests and mocking fetch/XHR responses.",
+  "version": "0.1.11",
+  "description": "A lightweight Chrome extension for capturing API requests and managing fetch/XHR response mocks.",
   "private": true,
   "scripts": {
     "build:vendor": "esbuild src/editor/codemirror-entry.js --bundle --format=iife --target=chrome100 --outfile=src/vendor/codemirror.bundle.js",
@@ -20,6 +20,7 @@
   "homepage": "https://github.com/eijil/request-mock-lite#readme",
   "devDependencies": {
     "@codemirror/commands": "^6.10.3",
+    "@codemirror/lang-javascript": "^6.2.5",
     "@codemirror/lang-json": "^6.0.2",
     "@codemirror/language": "^6.12.3",
     "@codemirror/lint": "^6.9.6",

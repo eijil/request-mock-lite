@@ -20,6 +20,7 @@ capture a request, turn it into a rule, edit the response, and keep building.
 ## Highlights
 
 - Capture HTTP(S) requests from the inspected tab.
+- Open the rule manager from the toolbar side panel without opening DevTools.
 - Create mock rules from captured requests.
 - Mock response body, status code, and headers.
 - Add per-rule response delay.
@@ -43,15 +44,17 @@ capture a request, turn it into a rule, edit the response, and keep building.
 4. Enable **Developer mode**.
 5. Click **Load unpacked**.
 6. Select the `request-mock-lite` folder.
-7. Open DevTools and select the **Mock Lite** panel.
+7. Click the Request Mock Lite toolbar icon to open the side-panel manager.
+8. Open DevTools and select the **Mock Lite** panel only when you want to capture requests from the inspected tab.
 
 ## Usage
 
-1. Open the **Mock Lite** DevTools panel.
-2. Refresh or use the page to collect requests.
-3. Click **Mock this** on a captured request.
-4. Edit the match rule, status, headers, or response body.
-5. Save the rule and trigger the request again.
+1. Click the Request Mock Lite toolbar icon to open the side-panel manager.
+2. Add a rule manually, paste a cURL command in the **Add** flow, or import an existing JSON rules file.
+3. Enable or disable groups and rules from the manager; changes are saved immediately to extension storage.
+4. To create a rule from a live request, open the **Mock Lite** DevTools panel, refresh or use the page, then click **Mock this** on a captured request.
+5. Edit the match rule, status, headers, delay, or response body.
+6. Save the rule and trigger the request again.
 
 ## Local Development
 

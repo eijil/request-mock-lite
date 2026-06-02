@@ -11,7 +11,7 @@
       <header class="topbar">
         <div>
           <h1>Request Mock Lite</h1>
-          <p>Capture requests, pin a response, switch rules on when you need them.</p>
+          <p id="topbarSubtitle">Capture requests, pin a response, switch rules on when you need them.</p>
         </div>
         <div id="contextNotice" class="context-notice" hidden>
           Extension reloaded. Reopen DevTools.
@@ -51,7 +51,7 @@
             <div class="heading-actions">
               <button id="renameGroupBtn" class="small-btn ghost">Rename</button>
               <button id="deleteGroupBtn" class="small-btn ghost">Delete</button>
-              <button id="addRuleBtn" class="small-btn">Blank rule</button>
+              <button id="addRuleBtn" class="small-btn">Add</button>
             </div>
           </div>
           <div id="rulesList" class="rules-list"></div>
@@ -88,6 +88,16 @@
         </header>
 
         <div class="dialog-body">
+          <div id="curlImportBlock" class="field-block curl-import" hidden>
+            <span class="label-row">
+              <span>Paste cURL</span>
+              <button id="parseCurlBtn" type="button" class="small-btn ghost">Parse</button>
+            </span>
+            <textarea id="curlInput" rows="5" spellcheck="false" placeholder="curl 'https://api.example.com/users' \
+  -H 'accept: application/json' \
+  --data-raw '{&quot;enabled&quot;:true}'"></textarea>
+            <p id="curlParseStatus" class="parse-status" aria-live="polite"></p>
+          </div>
           <div class="form-grid">
             <label>
               Name
@@ -98,6 +108,7 @@
               <select id="ruleMethod" name="method">
                 <option value="ANY">ANY</option>
                 <option>GET</option>
+                <option>HEAD</option>
                 <option>POST</option>
                 <option>PUT</option>
                 <option>PATCH</option>
@@ -158,7 +169,13 @@
 
           <div class="field-block json-field response-body-field">
             <span class="label-row">
-              <span>Response body</span>
+              <span class="body-mode">
+                <span id="bodyFieldLabel">Response body</span>
+                <span class="radio-group" role="radiogroup" aria-label="Response body type">
+                  <label><input type="radio" name="responseType" value="json" checked> Static</label>
+                  <label><input type="radio" name="responseType" value="function"> Dynamic</label>
+                </span>
+              </span>
               <span class="field-actions">
                 <button id="templateHelpBtn" type="button" class="mini-btn" title="Template playground" aria-label="Open template playground">
                   <svg aria-hidden="true" viewBox="0 0 24 24">

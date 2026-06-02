@@ -1,7 +1,8 @@
-import { EditorState } from "@codemirror/state";
+import { EditorState, Compartment } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers, highlightActiveLine, drawSelection } from "@codemirror/view";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, indentSelection } from "@codemirror/commands";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
+import { javascript } from "@codemirror/lang-javascript";
 import { lintGutter, linter } from "@codemirror/lint";
 import { syntaxHighlighting, HighlightStyle } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
@@ -55,8 +56,27 @@ const syntaxTheme = HighlightStyle.define([
   { tag: tags.null, color: "#f6be5f" },
   { tag: tags.propertyName, color: "#58c4b6" },
   { tag: tags.punctuation, color: "#9da5af" },
-  { tag: tags.invalid, color: "#ff6b6b" }
+  { tag: tags.invalid, color: "#ff6b6b" },
+  { tag: tags.keyword, color: "#e85d40" },
+  { tag: tags.controlKeyword, color: "#e85d40" },
+  { tag: tags.operatorKeyword, color: "#e85d40" },
+  { tag: tags.comment, color: "#65707c", fontStyle: "italic" },
+  { tag: tags.lineComment, color: "#65707c", fontStyle: "italic" },
+  { tag: tags.blockComment, color: "#65707c", fontStyle: "italic" },
+  { tag: tags.variableName, color: "#f4f0e8" },
+  { tag: tags.definition(tags.variableName), color: "#f4f0e8" },
+  { tag: tags.function(tags.variableName), color: "#58c4b6" },
+  { tag: tags.function(tags.propertyName), color: "#58c4b6" },
+  { tag: tags.operator, color: "#9da5af" },
+  { tag: tags.typeName, color: "#f6be5f" },
+  { tag: tags.className, color: "#f6be5f" },
+  { tag: tags.regexp, color: "#8bd46f" }
 ]);
+
+function languageExtension(language) {
+  if (language === "javascript") return [javascript()];
+  return [json(), linter(jsonParseLinter())];
+}
 
 const baseExtensions = [
   lineNumbers(),
@@ -69,16 +89,16 @@ const baseExtensions = [
     ...historyKeymap
   ]),
   lintGutter(),
-  json(),
-  linter(jsonParseLinter()),
   syntaxHighlighting(syntaxTheme),
   editableTheme
 ];
 
 window.RequestMockLiteEditor = {
   create(options) {
+    const languageConf = new Compartment();
     const extensions = [
       ...baseExtensions,
+      languageConf.of(languageExtension(options.language || "json")),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) options.onChange?.(update.state.doc.toString());
       })
@@ -103,6 +123,19 @@ window.RequestMockLiteEditor = {
             insert: value || ""
           }
         });
+      },
+      setLanguage(language) {
+        view.dispatch({
+          effects: languageConf.reconfigure(languageExtension(language))
+        });
+      },
+      format() {
+        const end = view.state.doc.length;
+        view.dispatch({ selection: { anchor: 0, head: end } });
+        indentSelection(view);
+        const caret = view.state.selection.main.head;
+        view.dispatch({ selection: { anchor: caret, head: caret } });
+        view.focus();
       },
       focus() {
         view.focus();

@@ -1,5 +1,6 @@
 const STORAGE_KEY = "requestMockLiteState";
 const MAX_CAPTURED = 120;
+const canCaptureRequests = Boolean(globalThis.chrome?.devtools?.network?.onRequestFinished);
 
 const els = {
   groupsList: document.querySelector("#groupsList"),
@@ -17,11 +18,18 @@ const els = {
   captureSearch: document.querySelector("#captureSearch"),
   exportBtn: document.querySelector("#exportBtn"),
   importInput: document.querySelector("#importInput"),
+  topbarSubtitle: document.querySelector("#topbarSubtitle"),
   contextNotice: document.querySelector("#contextNotice"),
   dialog: document.querySelector("#ruleDialog"),
   ruleForm: document.querySelector("#ruleForm"),
   dialogTitle: document.querySelector("#dialogTitle"),
+  dialogHint: document.querySelector("#dialogHint"),
+  curlImportBlock: document.querySelector("#curlImportBlock"),
+  curlInput: document.querySelector("#curlInput"),
+  parseCurlBtn: document.querySelector("#parseCurlBtn"),
+  curlParseStatus: document.querySelector("#curlParseStatus"),
   ruleName: document.querySelector("#ruleName"),
+  responseTypeRadios: Array.from(document.querySelectorAll('input[name="responseType"]')),
   ruleMethod: document.querySelector("#ruleMethod"),
   ruleMatchType: document.querySelector("#ruleMatchType"),
   ruleStatus: document.querySelector("#ruleStatus"),
@@ -48,15 +56,40 @@ let editingRuleId = null;
 let bodyEditor = null;
 let fullscreenEditor = null;
 let fullscreenOriginalBody = "";
+let lastResponseType = "json";
+let responseDrafts = { json: null, function: null };
+let extensionContextInvalidated = false;
+
+const STATIC_DEFAULT_BODY = "{}";
+const FUNCTION_DEFAULT_BODY = `function (req) {
+  return req.responseJSON;
+}`;
 
 init();
 
 async function init() {
   state = await loadState();
   activeGroupId = state.groups[0]?.id || createGroup("Default").id;
+  applyRuntimeMode();
   bindEvents();
-  bindNetworkCapture();
+  if (canCaptureRequests) bindNetworkCapture();
   render();
+}
+
+function applyRuntimeMode() {
+  const mode = canCaptureRequests ? "devtools" : "standalone";
+  document.documentElement.dataset.runtime = mode;
+  document.body.dataset.runtime = mode;
+
+  if (canCaptureRequests) return;
+
+  els.topbarSubtitle.textContent = "Manage mock rules from the toolbar. Open DevTools only when you need live request capture.";
+  els.contextNotice.hidden = true;
+  els.captureToggle.checked = false;
+  els.captureToggle.disabled = true;
+  els.clearCapturedBtn.disabled = true;
+  els.captureSearch.disabled = true;
+  els.captureStateText.textContent = "Capture requires DevTools";
 }
 
 function makeDefaultState() {
@@ -142,6 +175,8 @@ function bindEvents() {
   els.captureSearch.addEventListener("input", renderCaptured);
   els.exportBtn.addEventListener("click", exportRules);
   els.importInput.addEventListener("change", importRules);
+  els.curlInput.addEventListener("input", () => applyCurlInput({ silent: true }));
+  els.parseCurlBtn.addEventListener("click", () => applyCurlInput({ silent: false }));
   els.ruleDelayPreset.addEventListener("change", () => {
     if (els.ruleDelayPreset.value !== "custom") {
       els.ruleDelay.value = els.ruleDelayPreset.value;
@@ -149,6 +184,9 @@ function bindEvents() {
   });
   els.ruleDelay.addEventListener("input", () => {
     syncDelayPreset(Number(els.ruleDelay.value || 0));
+  });
+  els.responseTypeRadios.forEach((radio) => {
+    radio.addEventListener("change", onResponseTypeChange);
   });
   document.querySelector("#templateHelpBtn").addEventListener("click", openTemplatePlayground);
   document.querySelector("#expandBodyBtn").addEventListener("click", openFullscreenEditor);
@@ -179,6 +217,7 @@ function ensureEditors() {
 }
 
 function bindNetworkCapture() {
+  if (!canCaptureRequests) return;
   chrome.devtools.network.onRequestFinished.addListener((request) => {
     if (!state.settings.captureEnabled) return;
     const method = request.request?.method || "GET";
@@ -270,11 +309,14 @@ function renderRules() {
   els.rulesList.replaceChildren();
 
   if (!rules.length) {
-    els.rulesList.append(empty("No rules yet. Capture a request and turn it into a mock."));
+    els.rulesList.append(empty(canCaptureRequests
+      ? "No rules yet. Capture a request and turn it into a mock."
+      : "No rules yet. Click Add and paste a cURL command, or import an existing rules JSON."));
     return;
   }
 
   rules.forEach((rule) => {
+    const modeTag = rule.responseMode === "function" ? ` · <span class="mode-tag">fn</span>` : "";
     const card = document.createElement("article");
     card.className = "rule-card";
     card.innerHTML = `
@@ -285,7 +327,7 @@ function renderRules() {
         </label>
         <div>
           <div class="rule-title">${escapeHtml(rule.name)}</div>
-          <div class="meta"><span class="method">${rule.method}</span> · ${rule.matchType} · <span class="status ${rule.status >= 400 ? "error" : ""}">${rule.status}</span>${rule.delayMs ? ` · ${formatDelay(rule.delayMs)} delay` : ""}</div>
+          <div class="meta"><span class="method">${rule.method}</span> · ${rule.matchType} · <span class="status ${rule.status >= 400 ? "error" : ""}">${rule.status}</span>${modeTag}${rule.delayMs ? ` · ${formatDelay(rule.delayMs)} delay` : ""}</div>
         </div>
         <span class="badge">${rule.enabled && group.enabled ? "active" : "off"}</span>
       </div>
@@ -348,6 +390,13 @@ async function deleteActiveGroup() {
 }
 
 function renderCaptured() {
+  if (!canCaptureRequests) {
+    els.captureToggle.checked = false;
+    els.captureStateText.textContent = "Capture requires DevTools";
+    els.capturedList.replaceChildren(empty("Open DevTools and select Mock Lite when you need to capture live requests."));
+    return;
+  }
+
   const captureEnabled = state.settings.captureEnabled;
   els.captureToggle.checked = captureEnabled;
   els.captureStateText.textContent = captureEnabled
@@ -391,22 +440,65 @@ function renderCaptured() {
 
 function openRuleDialog(rule = null, capturedRequest = null) {
   editingRuleId = rule?.id || null;
-  const body = capturedRequest?.body || rule?.body || "{\n  \"ok\": true\n}";
+  const body = capturedRequest?.body || rule?.body || STATIC_DEFAULT_BODY;
   const headers = rule?.headers || deriveHeaders(capturedRequest);
 
+  const isCurlImport = !rule && !capturedRequest;
   els.dialogTitle.textContent = rule ? "Edit mock rule" : "Create mock rule";
+  els.dialogHint.textContent = isCurlImport
+    ? "Paste a cURL command copied from DevTools. URL and method are parsed automatically."
+    : "Exact URL matching is safest for captured APIs.";
+  els.curlImportBlock.hidden = !isCurlImport;
+  els.curlInput.value = "";
+  setCurlParseStatus(isCurlImport ? "Paste cURL here, then review the generated rule." : "", "");
   els.ruleName.value = rule?.name || capturedRequest?.url?.split("?")[0].split("/").slice(-1)[0] || "New mock";
   els.ruleMethod.value = rule?.method || capturedRequest?.method || "GET";
   els.ruleMatchType.value = rule?.matchType || (capturedRequest ? "path" : "exact");
   els.ruleStatus.value = rule?.status || capturedRequest?.status || 200;
   setDelayValue(rule?.delayMs || 0);
   els.ruleUrlPattern.value = rule?.urlPattern || patternFromCapturedUrl(capturedRequest?.url) || "";
+  const isFunction = rule?.responseMode === "function";
+  const initialType = isFunction ? "function" : "json";
+  const initialBody = isFunction ? (rule?.body || FUNCTION_DEFAULT_BODY) : prettyBody(body);
+  setResponseType(initialType);
+  lastResponseType = initialType;
+  responseDrafts = { json: null, function: null };
+  responseDrafts[initialType] = initialBody;
   els.ruleHeaders.value = JSON.stringify(headers, null, 2);
-  setBodyValue(prettyBody(body));
+  setBodyValue(initialBody);
   els.ruleEnabled.checked = rule?.enabled ?? true;
   els.dialog.showModal();
   ensureEditors();
-  bodyEditor.focus();
+  updateResponseTypeUi();
+  if (isCurlImport) els.curlInput.focus();
+  else bodyEditor.focus();
+}
+
+function onResponseTypeChange() {
+  const next = getResponseType();
+  if (next === lastResponseType) return;
+  responseDrafts[lastResponseType] = getBodyValue();
+  const draft = responseDrafts[next];
+  setBodyValue(draft != null ? draft : (next === "function" ? FUNCTION_DEFAULT_BODY : STATIC_DEFAULT_BODY));
+  lastResponseType = next;
+  updateResponseTypeUi();
+}
+
+function getResponseType() {
+  const checked = els.responseTypeRadios.find((radio) => radio.checked);
+  return checked ? checked.value : "json";
+}
+
+function setResponseType(value) {
+  els.responseTypeRadios.forEach((radio) => {
+    radio.checked = radio.value === value;
+  });
+}
+
+function updateResponseTypeUi() {
+  const isFunction = getResponseType() === "function";
+  bodyEditor?.setLanguage?.(isFunction ? "javascript" : "json");
+  fullscreenEditor?.setLanguage?.(isFunction ? "javascript" : "json");
 }
 
 function deriveHeaders(capturedRequest) {
@@ -425,7 +517,358 @@ function patternFromCapturedUrl(url) {
   }
 }
 
+function applyCurlInput({ silent = false } = {}) {
+  const source = els.curlInput.value.trim();
+  if (!source) {
+    setCurlParseStatus("Paste cURL here, then review the generated rule.", "");
+    return false;
+  }
+
+  const parsed = parseCurlCommand(source);
+  if (!parsed.url || !isMockableUrl(parsed.url)) {
+    setCurlParseStatus(
+      silent ? "Waiting for a cURL command with an http(s) URL." : "Could not find an http(s) URL in the cURL command.",
+      silent ? "" : "error"
+    );
+    return false;
+  }
+
+  applyParsedCurl(parsed);
+  const bodyNote = parsed.requestBody ? " with request body" : "";
+  setCurlParseStatus(`Parsed ${parsed.method} ${parsed.url}${bodyNote}.`, "ok");
+  return true;
+}
+
+function applyParsedCurl(parsed) {
+  const supportedMethod = Array.from(els.ruleMethod.options).some((option) => option.value === parsed.method)
+    ? parsed.method
+    : "ANY";
+  els.ruleMethod.value = supportedMethod;
+  els.ruleMatchType.value = "exact";
+  els.ruleUrlPattern.value = parsed.url;
+  if (!els.ruleName.value.trim() || els.ruleName.value === "New mock") {
+    els.ruleName.value = nameFromUrl(parsed.url);
+  }
+  els.ruleHeaders.value = JSON.stringify(inferResponseHeadersFromCurl(parsed.requestHeaders), null, 2);
+}
+
+function setCurlParseStatus(message, stateName) {
+  els.curlParseStatus.textContent = message;
+  if (stateName) {
+    els.curlParseStatus.dataset.state = stateName;
+  } else {
+    delete els.curlParseStatus.dataset.state;
+  }
+}
+
+function parseCurlCommand(source) {
+  const tokens = tokenizeCurlCommand(source);
+  const requestHeaders = {};
+  const dataParts = [];
+  let method = "";
+  let methodExplicit = false;
+  let url = "";
+  let appendDataToUrl = false;
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (!token || /^curl(?:\.exe)?$/i.test(token)) continue;
+
+    if (token === "--url") {
+      url = tokens[index + 1] || url;
+      index += 1;
+      continue;
+    }
+    if (token.startsWith("--url=")) {
+      url = token.slice("--url=".length);
+      continue;
+    }
+
+    if (token === "-X" || token === "--request") {
+      method = String(tokens[index + 1] || method).toUpperCase();
+      methodExplicit = true;
+      index += 1;
+      continue;
+    }
+    if (token.startsWith("--request=")) {
+      method = token.slice("--request=".length).toUpperCase();
+      methodExplicit = true;
+      continue;
+    }
+    if (token.startsWith("-X") && token.length > 2) {
+      method = token.slice(2).toUpperCase();
+      methodExplicit = true;
+      continue;
+    }
+
+    if (token === "-H" || token === "--header") {
+      addCurlHeader(tokens[index + 1] || "", requestHeaders);
+      index += 1;
+      continue;
+    }
+    if (token.startsWith("--header=")) {
+      addCurlHeader(token.slice("--header=".length), requestHeaders);
+      continue;
+    }
+    if (token.startsWith("-H") && token.length > 2) {
+      addCurlHeader(token.slice(2), requestHeaders);
+      continue;
+    }
+
+    if (token === "-A" || token === "--user-agent") {
+      addCurlHeader(`user-agent: ${tokens[index + 1] || ""}`, requestHeaders);
+      index += 1;
+      continue;
+    }
+    if (token.startsWith("--user-agent=")) {
+      addCurlHeader(`user-agent: ${token.slice("--user-agent=".length)}`, requestHeaders);
+      continue;
+    }
+
+    if (token === "-e" || token === "--referer") {
+      addCurlHeader(`referer: ${tokens[index + 1] || ""}`, requestHeaders);
+      index += 1;
+      continue;
+    }
+    if (token.startsWith("--referer=")) {
+      addCurlHeader(`referer: ${token.slice("--referer=".length)}`, requestHeaders);
+      continue;
+    }
+
+    if (token === "-b" || token === "--cookie") {
+      addCurlHeader(`cookie: ${tokens[index + 1] || ""}`, requestHeaders);
+      index += 1;
+      continue;
+    }
+    if (token.startsWith("--cookie=")) {
+      addCurlHeader(`cookie: ${token.slice("--cookie=".length)}`, requestHeaders);
+      continue;
+    }
+    if (token.startsWith("-b") && token.length > 2) {
+      addCurlHeader(`cookie: ${token.slice(2)}`, requestHeaders);
+      continue;
+    }
+
+    if (isCurlDataFlag(token)) {
+      const value = tokens[index + 1] || "";
+      dataParts.push(value);
+      if (token === "--json") addJsonCurlHeaders(requestHeaders);
+      if (!method && !appendDataToUrl) method = "POST";
+      index += 1;
+      continue;
+    }
+
+    const dataValue = curlDataFlagValue(token);
+    if (dataValue) {
+      dataParts.push(dataValue.value);
+      if (dataValue.json) addJsonCurlHeaders(requestHeaders);
+      if (!method && !appendDataToUrl) method = "POST";
+      continue;
+    }
+
+    if (token === "-G" || token === "--get") {
+      appendDataToUrl = true;
+      if (!methodExplicit) method = "GET";
+      continue;
+    }
+
+    if (token === "-I" || token === "--head") {
+      method = "HEAD";
+      methodExplicit = true;
+      continue;
+    }
+
+    if (curlFlagNeedsValue(token)) {
+      index += 1;
+      continue;
+    }
+
+    if (isUrlToken(token)) {
+      url = token;
+    }
+  }
+
+  const requestBody = appendDataToUrl ? "" : dataParts.join("&");
+  if (appendDataToUrl && dataParts.length && url) {
+    url = appendCurlDataToUrl(url, dataParts.join("&"));
+  }
+
+  return {
+    url,
+    method: (method || (requestBody ? "POST" : "GET")).toUpperCase(),
+    requestHeaders,
+    requestBody
+  };
+}
+
+function tokenizeCurlCommand(source) {
+  const input = source.replace(/\^\r?\n/g, " ");
+  const tokens = [];
+  let token = "";
+  let quote = "";
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+
+    if (quote === "'") {
+      if (char === "'") quote = "";
+      else token += char;
+      continue;
+    }
+
+    if (quote === "\"") {
+      if (char === "\"") {
+        quote = "";
+      } else if (char === "\\") {
+        const next = input[index + 1];
+        if (next === "\r" && input[index + 2] === "\n") {
+          index += 2;
+        } else if (next === "\n") {
+          index += 1;
+        } else if (next != null) {
+          token += next;
+          index += 1;
+        }
+      } else {
+        token += char;
+      }
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      if (token) {
+        tokens.push(token);
+        token = "";
+      }
+      continue;
+    }
+
+    if (char === "'" || char === "\"") {
+      quote = char;
+      continue;
+    }
+
+    if (char === "\\") {
+      const next = input[index + 1];
+      if (next === "\r" && input[index + 2] === "\n") {
+        index += 2;
+      } else if (next === "\n") {
+        index += 1;
+      } else if (next != null) {
+        token += next;
+        index += 1;
+      }
+      continue;
+    }
+
+    token += char;
+  }
+
+  if (token) tokens.push(token);
+  return tokens;
+}
+
+function addCurlHeader(headerLine, headers) {
+  const separator = headerLine.indexOf(":");
+  if (separator <= 0) return;
+  const name = headerLine.slice(0, separator).trim().toLowerCase();
+  const value = headerLine.slice(separator + 1).trim();
+  if (name) headers[name] = value;
+}
+
+function addJsonCurlHeaders(headers) {
+  if (!headers.accept) headers.accept = "application/json";
+  if (!headers["content-type"]) headers["content-type"] = "application/json";
+}
+
+function isCurlDataFlag(token) {
+  return [
+    "-d",
+    "--data",
+    "--data-raw",
+    "--data-binary",
+    "--data-ascii",
+    "--data-urlencode",
+    "--json"
+  ].includes(token);
+}
+
+function curlDataFlagValue(token) {
+  const prefixes = [
+    "--data=",
+    "--data-raw=",
+    "--data-binary=",
+    "--data-ascii=",
+    "--data-urlencode="
+  ];
+  for (const prefix of prefixes) {
+    if (token.startsWith(prefix)) return { value: token.slice(prefix.length), json: false };
+  }
+  if (token.startsWith("--json=")) return { value: token.slice("--json=".length), json: true };
+  if (token.startsWith("-d") && token.length > 2) return { value: token.slice(2), json: false };
+  return null;
+}
+
+function curlFlagNeedsValue(token) {
+  return [
+    "-F",
+    "--form",
+    "-u",
+    "--user",
+    "-o",
+    "--output",
+    "-x",
+    "--proxy",
+    "--cacert",
+    "--cert",
+    "--connect-timeout",
+    "--key",
+    "--max-time",
+    "--resolve"
+  ].includes(token);
+}
+
+function isUrlToken(token) {
+  return /^https?:\/\//i.test(token);
+}
+
+function appendCurlDataToUrl(url, data) {
+  const separator = url.includes("?")
+    ? (url.endsWith("?") || url.endsWith("&") ? "" : "&")
+    : "?";
+  return `${url}${separator}${data}`;
+}
+
+function inferResponseHeadersFromCurl(requestHeaders) {
+  return {
+    "content-type": pickAcceptedContentType(requestHeaders.accept) || "application/json"
+  };
+}
+
+function pickAcceptedContentType(accept) {
+  if (!accept) return "";
+  const accepted = accept
+    .split(",")
+    .map((item) => item.split(";")[0].trim())
+    .find((item) => item && item !== "*/*" && !item.endsWith("/*"));
+  return accepted || "";
+}
+
+function nameFromUrl(url) {
+  try {
+    const parsed = new URL(url);
+    const segment = parsed.pathname.split("/").filter(Boolean).pop();
+    return segment || parsed.hostname || "New mock";
+  } catch {
+    return "New mock";
+  }
+}
+
 async function saveRuleFromDialog() {
+  if (!editingRuleId && !els.curlImportBlock.hidden && els.curlInput.value.trim() && !els.ruleUrlPattern.value.trim()) {
+    if (!applyCurlInput({ silent: false })) return;
+  }
+
   let headers;
   try {
     headers = els.ruleHeaders.value.trim() ? JSON.parse(els.ruleHeaders.value) : {};
@@ -434,10 +877,20 @@ async function saveRuleFromDialog() {
     return;
   }
 
+  const responseType = getResponseType();
   const body = getBodyValue();
-  const responseMode = hasTemplateTokens(body) ? "template" : "static";
-  if (!hasTemplateTokens(body) && shouldValidateBodyJson(body, headers) &&
-    !validateJsonText(body, "Response body", { allowEmpty: true })) return;
+  let responseMode;
+  if (responseType === "function") {
+    responseMode = "function";
+    if (!body.trim()) {
+      alert("Response function cannot be empty.");
+      return;
+    }
+  } else {
+    responseMode = hasTemplateTokens(body) ? "template" : "static";
+    if (!hasTemplateTokens(body) && shouldValidateBodyJson(body, headers) &&
+      !validateJsonText(body, "Response body", { allowEmpty: true })) return;
+  }
 
   const delayMs = Number(els.ruleDelay.value || 0);
   if (!Number.isFinite(delayMs) || delayMs < 0) {
@@ -508,6 +961,10 @@ function hasTemplateTokens(value) {
 }
 
 function formatBodyEditor(editor, label) {
+  if (getResponseType() === "function") {
+    editor?.format?.();
+    return;
+  }
   const value = getBodyValue(editor).trim();
   if (!value) return;
   try {
@@ -734,7 +1191,9 @@ function handleExtensionContextError(error) {
     console.error(error);
     return;
   }
+  extensionContextInvalidated = true;
   els.contextNotice.hidden = false;
+  els.contextNotice.textContent = "Extension reloaded. Reopen Request Mock Lite.";
 }
 
 function empty(message) {

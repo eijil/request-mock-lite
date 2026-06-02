@@ -82,9 +82,10 @@
     if (!match) return nativeFetch.apply(this, arguments);
     logHit("fetch", request, match);
     await wait(match.delayMs || 0);
-    return new NativeResponse(resolveResponseBody(match, request), {
-      status: match.status || 200,
-      headers: new NativeHeaders(safeResponseHeaders(match.headers || {}))
+    const parts = await buildResponseParts(match, request);
+    return new NativeResponse(parts.body, {
+      status: parts.status,
+      headers: new NativeHeaders(safeResponseHeaders(parts.headers))
     });
   };
 
@@ -124,8 +125,10 @@
       return nativeGetResponseHeader.apply(this, arguments);
     };
 
-    proto.send = function send() {
+    proto.send = function send(bodyArg) {
       const request = this.__rml || {};
+      request.headers = request.requestHeaders || {};
+      request.body = typeof bodyArg === "string" ? bodyArg : null;
       const args = arguments;
       waitForRules().then(() => {
         const match = findMock(request.url, request.method);
@@ -134,13 +137,15 @@
           return;
         }
         logHit("xhr", request, match);
-        this.__rmlMock = {
-          body: resolveResponseBody(match, request),
-          status: match.status || 200,
-          headers: safeResponseHeaders(match.headers || {}),
-          url: request.url
-        };
-        respondToXhr(this, this.__rmlMock, match.delayMs || 0);
+        buildResponseParts(match, request).then((parts) => {
+          this.__rmlMock = {
+            body: parts.body,
+            status: parts.status,
+            headers: safeResponseHeaders(parts.headers),
+            url: request.url
+          };
+          respondToXhr(this, this.__rmlMock, match.delayMs || 0);
+        });
       });
       return undefined;
     };
@@ -231,13 +236,33 @@
     if (input instanceof NativeRequest) {
       return {
         url: input.url,
-        method: String(init.method || input.method || "GET").toUpperCase()
+        method: String(init.method || input.method || "GET").toUpperCase(),
+        headers: toPlainHeaders(init.headers || input.headers),
+        body: typeof init.body === "string" ? init.body : null
       };
     }
     return {
       url: absolutizeUrl(input),
-      method: String(init.method || "GET").toUpperCase()
+      method: String(init.method || "GET").toUpperCase(),
+      headers: toPlainHeaders(init.headers),
+      body: typeof init.body === "string" ? init.body : null
     };
+  }
+
+  function toPlainHeaders(headers) {
+    const out = {};
+    if (!headers) return out;
+    if (Array.isArray(headers)) {
+      headers.forEach((pair) => {
+        if (pair && pair.length >= 2) out[String(pair[0]).toLowerCase()] = String(pair[1]);
+      });
+      return out;
+    }
+    if (typeof headers.forEach === "function") {
+      headers.forEach((value, key) => { out[String(key).toLowerCase()] = String(value); });
+      return out;
+    }
+    return lowerCaseHeaders(headers);
   }
 
   function absolutizeUrl(url) {
@@ -330,6 +355,128 @@
       }
     );
     showIndicatorHit(request, rule);
+  }
+
+  async function buildResponseParts(rule, request) {
+    if (rule.responseMode === "function") {
+      return runFunctionResponse(rule, request);
+    }
+    return {
+      status: rule.status || 200,
+      headers: rule.headers || {},
+      body: resolveResponseBody(rule, request)
+    };
+  }
+
+  async function runFunctionResponse(rule, request) {
+    let real = null;
+    try {
+      real = await fetchRealResponse(request);
+    } catch (error) {
+      console.warn(
+        "[Request Mock Lite] real request failed; response will be undefined inside the function",
+        error
+      );
+    }
+    try {
+      // Note: new Function is blocked on sites whose CSP forbids 'unsafe-eval'.
+      const factory = new Function("return (" + (rule.body || "") + ");");
+      const fn = factory();
+      if (typeof fn !== "function") {
+        throw new TypeError("Response source must be a function, e.g. function(req) { return {} }");
+      }
+      const result = await Promise.resolve(fn(buildFunctionArg(request, real)));
+      return normalizeFunctionResult(result, real, rule);
+    } catch (error) {
+      console.error("[Request Mock Lite] response function failed", error);
+      return {
+        status: 500,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          error: "Request Mock Lite response function failed",
+          message: String(error && error.message ? error.message : error)
+        })
+      };
+    }
+  }
+
+  async function fetchRealResponse(request) {
+    const init = { method: request.method, headers: request.headers || {} };
+    if (request.body != null && request.method !== "GET" && request.method !== "HEAD") {
+      init.body = request.body;
+    }
+    const res = await nativeFetch(request.url, init);
+    const text = await res.text();
+    const headers = {};
+    res.headers.forEach((value, key) => { headers[key.toLowerCase()] = value; });
+    return {
+      status: res.status,
+      statusText: res.statusText,
+      headers,
+      text,
+      contentType: headers["content-type"] || ""
+    };
+  }
+
+  function buildFunctionArg(request, real) {
+    const arg = buildRequestArg(request);
+    arg.response = real ? real.text : undefined;
+    arg.responseJSON = real ? safeJsonParse(real.text) : undefined;
+    arg.responseHeaders = real ? real.headers : undefined;
+    arg.responseType = real ? real.contentType : undefined;
+    arg.status = real ? real.status : undefined;
+    arg.statusText = real ? real.statusText : undefined;
+    return arg;
+  }
+
+  function normalizeFunctionResult(result, real, rule) {
+    let status = real ? real.status : (rule.status || 200);
+    let headers = real
+      ? { ...real.headers, ...lowerCaseHeaders(rule.headers || {}) }
+      : { ...(rule.headers || {}) };
+    let bodyValue = result;
+    if (isPlainObject(result) && Object.prototype.hasOwnProperty.call(result, "body")) {
+      if (result.status != null) status = result.status;
+      if (isPlainObject(result.headers)) headers = { ...headers, ...lowerCaseHeaders(result.headers) };
+      bodyValue = result.body;
+    }
+    const body = typeof bodyValue === "string"
+      ? bodyValue
+      : JSON.stringify(bodyValue === undefined ? null : bodyValue);
+    delete headers["content-length"];
+    return { status, headers, body };
+  }
+
+  function safeJsonParse(text) {
+    try {
+      return JSON.parse(text);
+    } catch (_) {
+      return undefined;
+    }
+  }
+
+  function buildRequestArg(request) {
+    const query = {};
+    let path = "";
+    try {
+      const parsed = new URL(request.url);
+      path = parsed.pathname;
+      parsed.searchParams.forEach((value, key) => { query[key] = value; });
+    } catch (_) {
+      // Non-absolute or malformed URL; leave path/query empty.
+    }
+    return {
+      url: request.url,
+      method: request.method,
+      path,
+      query,
+      headers: request.headers || {},
+      body: request.body == null ? null : request.body
+    };
+  }
+
+  function isPlainObject(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
   }
 
   function resolveResponseBody(rule, request) {

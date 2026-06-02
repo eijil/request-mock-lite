@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.11
+
+- Add a toolbar entry that opens the rule manager in Chrome Side Panel with a full-page fallback.
+- Keep DevTools request capture while allowing standalone rule editing, import, export, and cURL-based rule creation.
+- Improve narrow layout support for the side-panel manager.
+
 ## 0.1.8
 
 - Add per-rule response delay controls.

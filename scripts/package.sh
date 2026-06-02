@@ -14,6 +14,7 @@ cd "$OUT_DIR"
 zip -qr "$ZIP_PATH" \
   request-mock-lite/manifest.json \
   request-mock-lite/icons \
+  request-mock-lite/src/background.js \
   request-mock-lite/src/content-bridge.js \
   request-mock-lite/src/devtools.html \
   request-mock-lite/src/devtools.js \

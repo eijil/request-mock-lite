@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Request Mock Lite",
-  "description": "Capture fetch/XHR requests from DevTools and mock responses with grouped rules.",
-  "version": "0.1.10",
+  "description": "Capture API requests from DevTools and manage fetch/XHR mocks from a toolbar side panel.",
+  "version": "0.1.11",
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",
@@ -10,12 +10,33 @@
   },
   "permissions": [
     "storage",
-    "scripting"
+    "scripting",
+    "sidePanel"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
+  "action": {
+    "default_title": "Open Request Mock Lite",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "side_panel": {
+    "default_path": "src/panel.html"
+  },
+  "options_page": "src/panel.html",
   "devtools_page": "src/devtools.html",
+  "commands": {
+    "open-manager": {
+      "description": "Open Request Mock Lite manager"
+    }
+  },
   "content_scripts": [
     {
       "matches": [

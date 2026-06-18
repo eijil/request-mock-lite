@@ -206,13 +206,15 @@ a {
   display: block;
   position: relative;
   width: fit-content;
-  padding-right: 0.04em;
+  padding-right: 0.12em;
 }
 
 .hero-title-core {
   display: inline-block;
   position: relative;
   z-index: 4;
+  transform: skewX(-12deg);
+  transform-origin: left center;
   -webkit-text-stroke: 1px rgba(190, 242, 100, 0.22);
 }
 
@@ -225,10 +227,10 @@ a {
   height: 0.19em;
   width: 102%;
   background:
-    linear-gradient(90deg, rgba(190, 242, 100, 0.45), rgba(34, 211, 238, 0.22), rgba(244, 114, 182, 0.12), transparent),
-    repeating-linear-gradient(90deg, transparent 0 7px, rgba(8, 16, 22, 0.9) 7px 9px);
-  transform: skewX(-14deg);
-  filter: drop-shadow(0 0 12px rgba(103, 232, 249, 0.22));
+    linear-gradient(90deg, rgba(190, 242, 100, 0.52), rgba(34, 211, 238, 0.25), rgba(244, 114, 182, 0.16), transparent),
+    repeating-linear-gradient(90deg, transparent 0 8px, rgba(8, 16, 22, 0.92) 8px 11px);
+  transform: skewX(-22deg) translateX(0.04em);
+  filter: drop-shadow(0 0 14px rgba(103, 232, 249, 0.28));
 }
 
 .hero-title-line::before,
@@ -239,22 +241,23 @@ a {
   z-index: 2;
   pointer-events: none;
   mix-blend-mode: screen;
+  transform-origin: left center;
 }
 
 .hero-title-line::before {
   color: #67e8f9;
-  opacity: 0.52;
-  transform: translate(0.035em, -0.015em);
-  clip-path: polygon(0 10%, 100% 10%, 100% 42%, 0 42%);
-  animation: title-glitch-cyan 4.8s steps(1, end) infinite;
+  opacity: 0.62;
+  transform: skewX(-12deg) translate(0.095em, -0.035em);
+  clip-path: polygon(0 8%, 100% 8%, 100% 34%, 0 34%);
+  animation: title-glitch-cyan 4.2s steps(1, end) infinite;
 }
 
 .hero-title-line::after {
   color: #f472b6;
-  opacity: 0.45;
-  transform: translate(-0.03em, 0.018em);
-  clip-path: polygon(0 54%, 100% 54%, 100% 86%, 0 86%);
-  animation: title-glitch-pink 5.4s steps(1, end) infinite;
+  opacity: 0.56;
+  transform: skewX(-12deg) translate(-0.085em, 0.045em);
+  clip-path: polygon(0 58%, 100% 58%, 100% 91%, 0 91%);
+  animation: title-glitch-pink 4.7s steps(1, end) infinite;
 }
 
 .hero-subcopy {
@@ -291,36 +294,46 @@ a {
 }
 
 @keyframes title-glitch-cyan {
-  0%, 88%, 100% {
-    transform: translate(0.035em, -0.015em);
-    clip-path: polygon(0 10%, 100% 10%, 100% 42%, 0 42%);
+  0%, 72%, 100% {
+    transform: skewX(-12deg) translate(0.095em, -0.035em);
+    clip-path: polygon(0 8%, 100% 8%, 100% 34%, 0 34%);
   }
 
-  89% {
-    transform: translate(0.08em, -0.025em);
-    clip-path: polygon(0 6%, 100% 6%, 100% 24%, 0 24%);
+  73% {
+    transform: skewX(-12deg) translate(0.24em, -0.07em);
+    clip-path: polygon(0 4%, 100% 4%, 100% 18%, 0 18%);
   }
 
-  90% {
-    transform: translate(-0.02em, 0.012em);
-    clip-path: polygon(0 38%, 100% 38%, 100% 54%, 0 54%);
+  74% {
+    transform: skewX(-12deg) translate(-0.16em, 0.045em);
+    clip-path: polygon(0 36%, 100% 36%, 100% 52%, 0 52%);
+  }
+
+  75% {
+    transform: skewX(-12deg) translate(0.19em, -0.025em);
+    clip-path: polygon(0 68%, 100% 68%, 100% 82%, 0 82%);
   }
 }
 
 @keyframes title-glitch-pink {
-  0%, 82%, 100% {
-    transform: translate(-0.03em, 0.018em);
-    clip-path: polygon(0 54%, 100% 54%, 100% 86%, 0 86%);
+  0%, 66%, 100% {
+    transform: skewX(-12deg) translate(-0.085em, 0.045em);
+    clip-path: polygon(0 58%, 100% 58%, 100% 91%, 0 91%);
   }
 
-  83% {
-    transform: translate(-0.07em, 0.025em);
-    clip-path: polygon(0 60%, 100% 60%, 100% 76%, 0 76%);
+  67% {
+    transform: skewX(-12deg) translate(-0.22em, 0.08em);
+    clip-path: polygon(0 56%, 100% 56%, 100% 72%, 0 72%);
   }
 
-  84% {
-    transform: translate(0.025em, -0.012em);
-    clip-path: polygon(0 78%, 100% 78%, 100% 94%, 0 94%);
+  68% {
+    transform: skewX(-12deg) translate(0.15em, -0.05em);
+    clip-path: polygon(0 78%, 100% 78%, 100% 96%, 0 96%);
+  }
+
+  69% {
+    transform: skewX(-12deg) translate(-0.17em, 0.02em);
+    clip-path: polygon(0 24%, 100% 24%, 100% 40%, 0 40%);
   }
 }
 

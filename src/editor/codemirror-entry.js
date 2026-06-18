@@ -11,66 +11,66 @@ const editableTheme = EditorView.theme({
   "&": {
     height: "100%",
     minHeight: "260px",
-    border: "1px solid #303640",
-    borderRadius: "8px",
+    border: "1px solid rgba(103, 232, 249, .24)",
+    borderRadius: "3px",
     overflow: "hidden",
-    backgroundColor: "#111418",
-    color: "#f4f0e8",
+    backgroundColor: "#071018",
+    color: "#e8fbff",
     fontSize: "12px"
   },
   ".cm-scroller": {
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace"
   },
   ".cm-content": {
     padding: "10px 0"
   },
   ".cm-gutters": {
-    backgroundColor: "#15191e",
-    color: "#65707c",
-    borderRight: "1px solid #303640"
+    backgroundColor: "#0b1420",
+    color: "#6f8491",
+    borderRight: "1px solid rgba(103, 232, 249, .22)"
   },
   ".cm-activeLine": {
-    backgroundColor: "rgba(88, 196, 182, .08)"
+    backgroundColor: "rgba(103, 232, 249, .08)"
   },
   ".cm-activeLineGutter": {
-    backgroundColor: "rgba(88, 196, 182, .10)",
-    color: "#f4f0e8"
+    backgroundColor: "rgba(103, 232, 249, .10)",
+    color: "#e8fbff"
   },
   ".cm-selectionBackground": {
-    backgroundColor: "rgba(88, 196, 182, .25) !important"
+    backgroundColor: "rgba(103, 232, 249, .25) !important"
   },
   ".cm-cursor": {
-    borderLeftColor: "#58c4b6"
+    borderLeftColor: "#bef264"
   },
   ".cm-tooltip": {
-    backgroundColor: "#181b1f",
-    border: "1px solid #303640",
-    color: "#f4f0e8"
+    backgroundColor: "#0b1420",
+    border: "1px solid rgba(103, 232, 249, .32)",
+    color: "#e8fbff"
   }
 });
 
 const syntaxTheme = HighlightStyle.define([
-  { tag: tags.string, color: "#8bd46f" },
-  { tag: tags.number, color: "#f6be5f" },
-  { tag: tags.bool, color: "#f6be5f" },
-  { tag: tags.null, color: "#f6be5f" },
-  { tag: tags.propertyName, color: "#58c4b6" },
-  { tag: tags.punctuation, color: "#9da5af" },
-  { tag: tags.invalid, color: "#ff6b6b" },
-  { tag: tags.keyword, color: "#e85d40" },
-  { tag: tags.controlKeyword, color: "#e85d40" },
-  { tag: tags.operatorKeyword, color: "#e85d40" },
-  { tag: tags.comment, color: "#65707c", fontStyle: "italic" },
-  { tag: tags.lineComment, color: "#65707c", fontStyle: "italic" },
-  { tag: tags.blockComment, color: "#65707c", fontStyle: "italic" },
-  { tag: tags.variableName, color: "#f4f0e8" },
-  { tag: tags.definition(tags.variableName), color: "#f4f0e8" },
-  { tag: tags.function(tags.variableName), color: "#58c4b6" },
-  { tag: tags.function(tags.propertyName), color: "#58c4b6" },
-  { tag: tags.operator, color: "#9da5af" },
-  { tag: tags.typeName, color: "#f6be5f" },
-  { tag: tags.className, color: "#f6be5f" },
-  { tag: tags.regexp, color: "#8bd46f" }
+  { tag: tags.string, color: "#bef264" },
+  { tag: tags.number, color: "#facc15" },
+  { tag: tags.bool, color: "#facc15" },
+  { tag: tags.null, color: "#facc15" },
+  { tag: tags.propertyName, color: "#67e8f9" },
+  { tag: tags.punctuation, color: "#9ab0bd" },
+  { tag: tags.invalid, color: "#fb7185" },
+  { tag: tags.keyword, color: "#f472b6" },
+  { tag: tags.controlKeyword, color: "#f472b6" },
+  { tag: tags.operatorKeyword, color: "#f472b6" },
+  { tag: tags.comment, color: "#6f8491", fontStyle: "italic" },
+  { tag: tags.lineComment, color: "#6f8491", fontStyle: "italic" },
+  { tag: tags.blockComment, color: "#6f8491", fontStyle: "italic" },
+  { tag: tags.variableName, color: "#e8fbff" },
+  { tag: tags.definition(tags.variableName), color: "#e8fbff" },
+  { tag: tags.function(tags.variableName), color: "#67e8f9" },
+  { tag: tags.function(tags.propertyName), color: "#67e8f9" },
+  { tag: tags.operator, color: "#9ab0bd" },
+  { tag: tags.typeName, color: "#facc15" },
+  { tag: tags.className, color: "#facc15" },
+  { tag: tags.regexp, color: "#bef264" }
 ]);
 
 function languageExtension(language) {

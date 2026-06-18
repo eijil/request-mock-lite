@@ -3,12 +3,18 @@
 
   const RULES_EVENT = "REQUEST_MOCK_LITE_RULES";
   const READY_EVENT = "REQUEST_MOCK_LITE_READY";
+  const CAPTURE_EVENT = "REQUEST_MOCK_LITE_CAPTURE";
   const RULES_READY_TIMEOUT_MS = 1200;
   const nativeFetch = window.fetch;
   const NativeRequest = window.Request;
   const NativeResponse = window.Response;
   const NativeHeaders = window.Headers;
   const NativeXMLHttpRequest = window.XMLHttpRequest;
+  const STATIC_RESOURCE_EXT_RE = /\.(avif|bmp|css|gif|ico|jpe?g|js|mjs|map|mp3|mp4|png|svg|webp|woff2?|ttf|otf)([?#].*)?$/i;
+  const STATIC_MIME_RE = /^(image|audio|video|font)\//i;
+  const STATIC_TEXT_MIME_RE = /\btext\/(css|javascript)\b|\bapplication\/(javascript|x-javascript|font-woff|font-woff2|octet-stream)\b/i;
+  const API_MIME_RE = /\b(application\/(json|graphql\+json|problem\+json|xml|x-www-form-urlencoded)|text\/(plain|xml|event-stream))\b/i;
+  const API_URL_RE = /\/(api|apis|graphql|gql|rpc|trpc|rest|v\d+)(\/|$|\?)/i;
 
   try {
     window.CSS?.registerProperty?.({
@@ -79,14 +85,20 @@
     const request = toRequestInfo(input, init);
     await waitForRules();
     const match = findMock(request.url, request.method);
-    if (!match) return nativeFetch.apply(this, arguments);
+    if (!match) {
+      const response = await nativeFetch.apply(this, arguments);
+      captureFetchResponse(request, response);
+      return response;
+    }
     logHit("fetch", request, match);
     await wait(match.delayMs || 0);
     const parts = await buildResponseParts(match, request);
-    return new NativeResponse(parts.body, {
+    const response = new NativeResponse(parts.body, {
       status: parts.status,
       headers: new NativeHeaders(safeResponseHeaders(parts.headers))
     });
+    captureFetchResponse(request, response);
+    return response;
   };
 
   patchXhr();
@@ -115,6 +127,7 @@
 
     proto.getAllResponseHeaders = function getAllResponseHeaders() {
       if (this.__rmlMock) return headersToString(this.__rmlMock.headers);
+      if (!isNativeXhr(this)) return "";
       return nativeGetAllResponseHeaders.apply(this, arguments);
     };
 
@@ -122,6 +135,7 @@
       if (this.__rmlMock) {
         return this.__rmlMock.headers[String(name).toLowerCase()] || null;
       }
+      if (!isNativeXhr(this)) return null;
       return nativeGetResponseHeader.apply(this, arguments);
     };
 
@@ -133,6 +147,7 @@
       waitForRules().then(() => {
         const match = findMock(request.url, request.method);
         if (!match) {
+          this.addEventListener("loadend", () => captureXhrResponse(this, request), { once: true });
           nativeSend.apply(this, args);
           return;
         }
@@ -149,6 +164,10 @@
       });
       return undefined;
     };
+  }
+
+  function isNativeXhr(value) {
+    return value instanceof NativeXMLHttpRequest;
   }
 
   function respondToXhr(xhr, mock, delayMs) {
@@ -173,7 +192,115 @@
       dispatch(xhr, "readystatechange");
       dispatch(xhr, "load");
       dispatch(xhr, "loadend");
+      captureMockXhrResponse(mock, xhr.__rml?.method || "GET");
     }, delayMs);
+  }
+
+  function captureFetchResponse(request, response) {
+    if (!shouldCapture(request.url)) return;
+    try {
+      const clone = response.clone();
+      clone.text()
+        .then((body) => {
+          emitCapture({
+            url: request.url,
+            method: request.method,
+            status: response.status,
+            mimeType: response.headers.get("content-type") || "",
+            body,
+            headers: headersFromFetch(response.headers)
+          });
+        })
+        .catch(() => {
+          emitCapture({
+            url: request.url,
+            method: request.method,
+            status: response.status,
+            mimeType: response.headers.get("content-type") || "",
+            body: "",
+            headers: headersFromFetch(response.headers)
+          });
+        });
+    } catch (_) {}
+  }
+
+  function captureXhrResponse(xhr, request) {
+    if (!shouldCapture(request.url)) return;
+    emitCapture({
+      url: request.url,
+      method: request.method,
+      status: xhr.status || 0,
+      mimeType: xhr.getResponseHeader("content-type") || "",
+      body: safeXhrBody(xhr),
+      headers: parseResponseHeaders(xhr.getAllResponseHeaders())
+    });
+  }
+
+  function captureMockXhrResponse(mock, method) {
+    if (!shouldCapture(mock.url)) return;
+    emitCapture({
+      url: mock.url,
+      method,
+      status: mock.status || 0,
+      mimeType: mock.headers["content-type"] || "",
+      body: mock.body || "",
+      headers: mock.headers || {}
+    });
+  }
+
+  function shouldCapture(url) {
+    return Boolean(mockState.settings?.captureEnabled && isMockableUrl(url) && !isStaticResourceUrl(url));
+  }
+
+  function isMockableUrl(url) {
+    return /^https?:\/\//i.test(String(url || ""));
+  }
+
+  function emitCapture(entry) {
+    if (!isApiCaptureEntry(entry)) return;
+    window.postMessage({
+      type: CAPTURE_EVENT,
+      entry: {
+        id: randomUuid(),
+        capturedAt: Date.now(),
+        ...entry
+      }
+    }, "*");
+  }
+
+  function isApiCaptureEntry(entry) {
+    const headers = entry?.headers || {};
+    const mimeType = String(entry?.mimeType || headers["content-type"] || headers["Content-Type"] || "");
+    const url = String(entry?.url || "");
+    if (!isMockableUrl(url) || isStaticResourceUrl(url)) return false;
+    if (STATIC_MIME_RE.test(mimeType) || STATIC_TEXT_MIME_RE.test(mimeType)) return false;
+    return API_MIME_RE.test(mimeType) || API_URL_RE.test(url) || !mimeType;
+  }
+
+  function isStaticResourceUrl(url) {
+    return STATIC_RESOURCE_EXT_RE.test(String(url || ""));
+  }
+
+  function headersFromFetch(headers) {
+    const out = {};
+    headers.forEach((value, key) => { out[String(key).toLowerCase()] = String(value); });
+    return out;
+  }
+
+  function parseResponseHeaders(value) {
+    return String(value || "").trim().split(/\r?\n/).reduce((acc, line) => {
+      const index = line.indexOf(":");
+      if (index > 0) acc[line.slice(0, index).trim().toLowerCase()] = line.slice(index + 1).trim();
+      return acc;
+    }, {});
+  }
+
+  function safeXhrBody(xhr) {
+    try {
+      if (!xhr.responseType || xhr.responseType === "text") return xhr.responseText || "";
+      if (xhr.responseType === "json") return JSON.stringify(xhr.response ?? null);
+    } catch (_) {}
+    return "";
   }
 
   function setXhrProps(xhr, props) {
@@ -275,6 +402,9 @@
 
   function normalizeState(state) {
     return {
+      settings: {
+        captureEnabled: state?.settings?.captureEnabled ?? false
+      },
       groups: Array.isArray(state?.groups) ? state.groups : [],
       rules: Array.isArray(state?.rules) ? state.rules.map((rule) => ({
         ...rule,
@@ -615,7 +745,7 @@
 
   function updateIndicator() {
     if (!canShowIndicator()) return;
-    const rules = activeRules();
+    const rules = activeRulesForCurrentOrigin();
     if (!rules.length) {
       if (indicator) indicator.host.hidden = true;
       return;
@@ -624,7 +754,54 @@
     ui.host.hidden = false;
     ui.host.dataset.hit = "false";
     ui.title.textContent = "MOCK ON";
-    ui.meta.textContent = `${rules.length} active rule${rules.length === 1 ? "" : "s"}`;
+    ui.meta.textContent = `${rules.length} rule${rules.length === 1 ? "" : "s"} for this site`;
+  }
+
+  function activeRulesForCurrentOrigin() {
+    return activeRules().filter(ruleTargetsCurrentOrigin);
+  }
+
+  function ruleTargetsCurrentOrigin(rule) {
+    const pattern = String(rule?.urlPattern || "").trim();
+    if (!pattern) return false;
+
+    if (rule.matchType === "regex") return regexTargetsCurrentOrigin(pattern);
+    if (rule.matchType === "contains") return containsPatternTargetsCurrentOrigin(pattern);
+    return exactPatternTargetsCurrentOrigin(pattern);
+  }
+
+  function exactPatternTargetsCurrentOrigin(pattern) {
+    if (pattern.startsWith("/")) return true;
+    if (!isAbsoluteHttpPattern(pattern)) return false;
+    try {
+      return new URL(pattern).origin === window.location.origin;
+    } catch {
+      return false;
+    }
+  }
+
+  function containsPatternTargetsCurrentOrigin(pattern) {
+    if (pattern.startsWith("/")) return true;
+    try {
+      if (isAbsoluteHttpPattern(pattern)) return new URL(pattern).origin === window.location.origin;
+      if (pattern.startsWith("//")) return new URL(`${window.location.protocol}${pattern}`).origin === window.location.origin;
+    } catch {
+      return false;
+    }
+    const host = window.location.host;
+    return Boolean(host && pattern.includes(host));
+  }
+
+  function regexTargetsCurrentOrigin(pattern) {
+    try {
+      const regex = new RegExp(pattern);
+      const escapedHost = escapeRegex(window.location.host);
+      return regex.test(window.location.origin)
+        || regex.test(window.location.href)
+        || new RegExp(escapedHost).test(pattern);
+    } catch {
+      return false;
+    }
   }
 
   function showIndicatorHit(request, rule) {
@@ -662,53 +839,30 @@
         bottom: 14px;
         z-index: 2147483647;
         pointer-events: none;
+        --rml-cyan: #22d3ee;
+        --rml-pink: #f472b6;
+        --rml-lime: #bef264;
+        --rml-ink: #071018;
       }
       .badge {
-        min-width: 124px;
-        max-width: 280px;
-        padding: 9px 11px;
-        border: 1px solid rgba(88, 196, 182, .55);
-        border-radius: 10px;
-        background: rgba(17, 20, 24, .62);
-        box-shadow: 0 12px 36px rgba(0, 0, 0, .28);
-        color: #f4f0e8;
-        font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        backdrop-filter: blur(10px);
-      }
-      :host([data-hit="true"]) .badge {
-        border-color: rgba(232, 93, 64, .85);
-        background: rgba(232, 93, 64, .94);
-      }
-      .title {
-        font-size: 11px;
-        font-weight: 850;
-        letter-spacing: .08em;
-        line-height: 1;
-      }
-      .meta {
-        margin-top: 5px;
-        overflow: hidden;
-        color: rgba(244, 240, 232, .78);
-        font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-        font-size: 11px;
-        line-height: 1.25;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .detail {
-        margin-top: 3px;
-        overflow: hidden;
-        color: rgba(244, 240, 232, .64);
-        font-size: 10px;
-        line-height: 1.2;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      :host([data-hit="false"]) .badge {
         position: relative;
-        border-color: transparent;
+        min-width: 142px;
+        max-width: 312px;
+        padding: 10px 12px 10px 14px;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        background:
+          linear-gradient(135deg, rgba(7, 16, 24, .94), rgba(12, 23, 34, .84)) padding-box;
+        box-shadow:
+          0 14px 36px rgba(0, 0, 0, .34),
+          0 0 24px rgba(34, 211, 238, .12);
+        color: #f8fdff;
+        font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        overflow: hidden;
+        backdrop-filter: blur(12px) saturate(1.18);
+        clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
       }
-      :host([data-hit="false"]) .badge::before {
+      .badge::before {
         content: "";
         position: absolute;
         inset: 0;
@@ -717,11 +871,11 @@
         padding: 1px;
         background: conic-gradient(
           from var(--rml-beam-angle),
-          rgba(88, 196, 182, .45),
-          rgba(232, 93, 64, 1) 90deg,
-          rgba(88, 196, 182, .45) 180deg,
-          rgba(88, 196, 182, 1) 270deg,
-          rgba(88, 196, 182, .45) 360deg
+          rgba(34, 211, 238, .28),
+          var(--rml-cyan) 72deg,
+          var(--rml-pink) 150deg,
+          var(--rml-lime) 228deg,
+          rgba(34, 211, 238, .28) 360deg
         );
         -webkit-mask:
           linear-gradient(#fff 0 0) content-box,
@@ -731,12 +885,74 @@
         animation: rml-border-beam 3s linear infinite;
         pointer-events: none;
       }
-      :host([data-hit="false"]) .badge > * {
+      .badge::after {
+        content: "";
+        position: absolute;
+        inset: 1px;
+        z-index: 0;
+        background:
+          linear-gradient(90deg, transparent, rgba(34, 211, 238, .12), transparent),
+          repeating-linear-gradient(180deg, rgba(248, 253, 255, .05) 0 1px, transparent 1px 5px);
+        opacity: .32;
+        pointer-events: none;
+      }
+      :host([data-hit="true"]) .badge {
+        box-shadow:
+          0 14px 38px rgba(0, 0, 0, .38),
+          0 0 28px rgba(244, 114, 182, .22),
+          0 0 18px rgba(190, 242, 100, .16);
+      }
+      :host([data-hit="true"]) .badge::before {
+        background: conic-gradient(
+          from var(--rml-beam-angle),
+          rgba(244, 114, 182, .30),
+          var(--rml-pink) 70deg,
+          var(--rml-lime) 150deg,
+          var(--rml-cyan) 250deg,
+          rgba(244, 114, 182, .30) 360deg
+        );
+        animation-duration: 1.55s;
+      }
+      .title {
         position: relative;
         z-index: 1;
+        color: var(--rml-cyan);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .12em;
+        line-height: 1.05;
+        text-transform: uppercase;
+        text-shadow: 0 0 12px rgba(34, 211, 238, .34);
+      }
+      :host([data-hit="true"]) .title {
+        color: var(--rml-lime);
+        text-shadow: 0 0 14px rgba(190, 242, 100, .28);
+      }
+      .meta {
+        position: relative;
+        z-index: 1;
+        margin-top: 5px;
+        overflow: hidden;
+        color: rgba(248, 253, 255, .86);
+        font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+        font-size: 11px;
+        line-height: 1.25;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .detail {
+        position: relative;
+        z-index: 1;
+        margin-top: 3px;
+        overflow: hidden;
+        color: rgba(244, 114, 182, .88);
+        font-size: 10px;
+        line-height: 1.2;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       @media (prefers-reduced-motion: reduce) {
-        :host([data-hit="false"]) .badge::before {
+        .badge::before {
           animation: none;
         }
       }
@@ -780,6 +996,14 @@
     } catch {
       return String(url || "").slice(0, 80);
     }
+  }
+
+  function escapeRegex(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function isAbsoluteHttpPattern(value) {
+    return /^https?:\/\//i.test(String(value || ""));
   }
 
   function waitForRules() {

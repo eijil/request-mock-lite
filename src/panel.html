@@ -49,9 +49,9 @@
               <p id="activeGroupMeta"></p>
             </div>
             <div class="heading-actions">
+              <button id="addRuleBtn" class="small-btn primary">Add</button>
               <button id="renameGroupBtn" class="small-btn ghost">Rename</button>
               <button id="deleteGroupBtn" class="small-btn ghost">Delete</button>
-              <button id="addRuleBtn" class="small-btn">Add</button>
             </div>
           </div>
           <div id="rulesList" class="rules-list"></div>
@@ -69,6 +69,7 @@
                 <span></span>
               </label>
               <button id="clearCapturedBtn" class="small-btn ghost">Clear</button>
+              <button id="captureCollapseBtn" class="icon-btn capture-collapse-btn" type="button" title="Toggle capture panel" aria-label="Toggle capture panel">›</button>
             </div>
           </div>
           <input id="captureSearch" class="search" type="search" placeholder="Filter URL or method">
@@ -76,6 +77,31 @@
         </section>
       </section>
     </main>
+
+    <dialog id="groupDialog" class="group-dialog">
+      <form method="dialog" id="groupForm">
+        <header class="dialog-head">
+          <div>
+            <h2 id="groupDialogTitle">New group</h2>
+            <p id="groupDialogHint">Create a group for related mock states.</p>
+          </div>
+          <button id="closeGroupDialogBtn" class="icon-btn close-btn" type="button" title="Close" aria-label="Close">×</button>
+        </header>
+        <div class="dialog-body">
+          <label>
+            Group name
+            <input id="groupNameInput" name="groupName" required maxlength="64" autocomplete="off">
+          </label>
+        </div>
+        <footer class="dialog-actions">
+          <span></span>
+          <div>
+            <button id="cancelGroupBtn" type="button" class="small-btn ghost">Cancel</button>
+            <button id="saveGroupBtn" type="submit" class="small-btn primary">Save group</button>
+          </div>
+        </footer>
+      </form>
+    </dialog>
 
     <dialog id="ruleDialog" class="rule-dialog">
       <form method="dialog" id="ruleForm">

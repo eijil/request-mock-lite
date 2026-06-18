@@ -1,6 +1,14 @@
 const STORAGE_KEY = "requestMockLiteState";
+const CAPTURE_STORAGE_KEY = "requestMockLiteCaptured";
 const MAX_CAPTURED = 120;
 const canCaptureRequests = Boolean(globalThis.chrome?.devtools?.network?.onRequestFinished);
+const canToolbarCapture = Boolean(globalThis.chrome?.runtime?.onMessage && globalThis.chrome?.storage?.local);
+const canCapture = canCaptureRequests || canToolbarCapture;
+const STATIC_RESOURCE_EXT_RE = /\.(avif|bmp|css|gif|ico|jpe?g|js|mjs|map|mp3|mp4|png|svg|webp|woff2?|ttf|otf)([?#].*)?$/i;
+const STATIC_MIME_RE = /^(image|audio|video|font)\//i;
+const STATIC_TEXT_MIME_RE = /\btext\/(css|javascript)\b|\bapplication\/(javascript|x-javascript|font-woff|font-woff2|octet-stream)\b/i;
+const API_MIME_RE = /\b(application\/(json|graphql\+json|problem\+json|xml|x-www-form-urlencoded)|text\/(plain|xml|event-stream))\b/i;
+const API_URL_RE = /\/(api|apis|graphql|gql|rpc|trpc|rest|v\d+)(\/|$|\?)/i;
 
 const els = {
   groupsList: document.querySelector("#groupsList"),
@@ -14,6 +22,7 @@ const els = {
   addRuleBtn: document.querySelector("#addRuleBtn"),
   clearCapturedBtn: document.querySelector("#clearCapturedBtn"),
   captureToggle: document.querySelector("#captureToggle"),
+  captureCollapseBtn: document.querySelector("#captureCollapseBtn"),
   captureStateText: document.querySelector("#captureStateText"),
   captureSearch: document.querySelector("#captureSearch"),
   exportBtn: document.querySelector("#exportBtn"),
@@ -22,6 +31,11 @@ const els = {
   contextNotice: document.querySelector("#contextNotice"),
   dialog: document.querySelector("#ruleDialog"),
   ruleForm: document.querySelector("#ruleForm"),
+  groupDialog: document.querySelector("#groupDialog"),
+  groupForm: document.querySelector("#groupForm"),
+  groupDialogTitle: document.querySelector("#groupDialogTitle"),
+  groupDialogHint: document.querySelector("#groupDialogHint"),
+  groupNameInput: document.querySelector("#groupNameInput"),
   dialogTitle: document.querySelector("#dialogTitle"),
   dialogHint: document.querySelector("#dialogHint"),
   curlImportBlock: document.querySelector("#curlImportBlock"),
@@ -54,6 +68,7 @@ let state = makeDefaultState();
 let activeGroupId = state.groups[0].id;
 let captured = [];
 let editingRuleId = null;
+let editingGroupId = null;
 let bodyEditor = null;
 let fullscreenEditor = null;
 let fullscreenOriginalBody = "";
@@ -77,19 +92,27 @@ init();
 
 async function init() {
   state = await loadState();
+  captured = await loadCaptured();
   activeGroupId = state.groups[0]?.id || createGroup("Default").id;
   applyRuntimeMode();
   bindEvents();
   if (canCaptureRequests) bindNetworkCapture();
+  if (canToolbarCapture) bindCapturedStorage();
   render();
 }
 
 function applyRuntimeMode() {
-  const mode = canCaptureRequests ? "devtools" : "standalone";
+  const mode = canCaptureRequests ? "devtools" : canToolbarCapture ? "toolbar" : "standalone";
   document.documentElement.dataset.runtime = mode;
   document.body.dataset.runtime = mode;
+  applyCaptureCollapsedState();
 
-  if (canCaptureRequests) return;
+  if (canCapture) {
+    if (mode === "toolbar") {
+      els.topbarSubtitle.textContent = "Manage rules and capture fetch/XHR from pages after capture is enabled.";
+    }
+    return;
+  }
 
   els.topbarSubtitle.textContent = "Manage mock rules from the toolbar. Open DevTools only when you need live request capture.";
   els.contextNotice.hidden = true;
@@ -103,7 +126,8 @@ function applyRuntimeMode() {
 function makeDefaultState() {
   return {
     settings: {
-      captureEnabled: true
+      captureEnabled: false,
+      capturePanelExpanded: false
     },
     groups: [
       {
@@ -150,19 +174,69 @@ async function saveState() {
   }
 }
 
-function bindEvents() {
-  els.addGroupBtn.addEventListener("click", async () => {
-    const name = prompt("Group name", "New group");
-    if (!name?.trim()) return;
-    const group = createGroup(name.trim());
-    activeGroupId = group.id;
-    await saveState();
-    render();
+async function loadCaptured() {
+  try {
+    const data = await chrome.storage.local.get(CAPTURE_STORAGE_KEY);
+    return normalizeCaptured(data[CAPTURE_STORAGE_KEY]);
+  } catch (error) {
+    handleExtensionContextError(error);
+    return [];
+  }
+}
+
+async function saveCaptured() {
+  try {
+    await chrome.storage.local.set({ [CAPTURE_STORAGE_KEY]: captured.slice(0, MAX_CAPTURED) });
+    return true;
+  } catch (error) {
+    handleExtensionContextError(error);
+    return false;
+  }
+}
+
+function bindCapturedStorage() {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local" || !changes[CAPTURE_STORAGE_KEY]) return;
+    captured = normalizeCaptured(changes[CAPTURE_STORAGE_KEY].newValue);
+    renderCaptured();
   });
+}
+
+function normalizeCaptured(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item) => item && item.url && item.method)
+    .map((item) => ({
+      id: item.id || crypto.randomUUID(),
+      url: String(item.url),
+      method: String(item.method || "GET").toUpperCase(),
+      status: Number(item.status || 0),
+      mimeType: String(item.mimeType || ""),
+      capturedAt: Number(item.capturedAt || Date.now()),
+      body: typeof item.body === "string" ? item.body : "",
+      headers: item.headers && typeof item.headers === "object" ? item.headers : {}
+    }))
+    .filter(isApiCaptureEntry)
+    .slice(0, MAX_CAPTURED);
+}
+
+function applyCaptureCollapsedState() {
+  const expanded = Boolean(state.settings.capturePanelExpanded);
+  document.documentElement.dataset.captureCollapsed = String(!expanded);
+  document.body.dataset.captureCollapsed = String(!expanded);
+  els.captureCollapseBtn.textContent = expanded ? "›" : "‹";
+  els.captureCollapseBtn.title = expanded ? "Collapse capture panel" : "Expand capture panel";
+  els.captureCollapseBtn.setAttribute("aria-label", els.captureCollapseBtn.title);
+}
+
+function bindEvents() {
+  els.addGroupBtn.addEventListener("click", () => openGroupDialog());
 
   els.addRuleBtn.addEventListener("click", () => openRuleDialog());
   els.renameGroupBtn.addEventListener("click", renameActiveGroup);
   els.deleteGroupBtn.addEventListener("click", deleteActiveGroup);
+  document.querySelector("#closeGroupDialogBtn").addEventListener("click", () => els.groupDialog.close());
+  document.querySelector("#cancelGroupBtn").addEventListener("click", () => els.groupDialog.close());
   document.querySelector("#closeDialogBtn").addEventListener("click", () => els.dialog.close());
   document.querySelector("#cancelRuleBtn").addEventListener("click", () => els.dialog.close());
   document.querySelector("#closeFullscreenBtn").addEventListener("click", closeFullscreenEditor);
@@ -173,7 +247,13 @@ function bindEvents() {
   document.querySelector("#templateTokenGrid").addEventListener("click", copyTemplateToken);
   els.clearCapturedBtn.addEventListener("click", () => {
     captured = [];
+    void saveCaptured();
     renderCaptured();
+  });
+  els.captureCollapseBtn.addEventListener("click", async () => {
+    state.settings.capturePanelExpanded = !state.settings.capturePanelExpanded;
+    applyCaptureCollapsedState();
+    await saveState();
   });
   els.captureToggle.addEventListener("change", async (event) => {
     state.settings.captureEnabled = event.target.checked;
@@ -207,6 +287,11 @@ function bindEvents() {
     event.preventDefault();
     await saveRuleFromDialog();
   });
+
+  els.groupForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await saveGroupFromDialog();
+  });
 }
 
 function ensureEditors() {
@@ -228,6 +313,7 @@ function bindNetworkCapture() {
   if (!canCaptureRequests) return;
   chrome.devtools.network.onRequestFinished.addListener((request) => {
     if (!state.settings.captureEnabled) return;
+    if (!isFetchOrXhrRequest(request)) return;
     const method = request.request?.method || "GET";
     const url = request.request?.url || "";
     if (!url || !isMockableUrl(url)) return;
@@ -247,6 +333,7 @@ function bindNetworkCapture() {
       entry.body = content || "";
       captured = [entry, ...captured.filter((item) => item.url !== url || item.method !== method)]
         .slice(0, MAX_CAPTURED);
+      void saveCaptured();
       renderCaptured();
     });
   });
@@ -254,6 +341,48 @@ function bindNetworkCapture() {
 
 function isMockableUrl(url) {
   return /^https?:\/\//i.test(url);
+}
+
+function isFetchOrXhrRequest(request) {
+  const url = request?.request?.url || "";
+  const accept = getRequestHeader(request, "accept");
+  const requestContentType = getRequestHeader(request, "content-type");
+  const responseContentType = getResponseHeader(request, "content-type") || request?.response?.content?.mimeType || "";
+  if (!isApiRequestCandidate(url, responseContentType || requestContentType || accept)) return false;
+
+  const resourceType = String(request?._resourceType || request?.resourceType || request?.type || "").toLowerCase();
+  if (resourceType) return ["fetch", "xhr", "xmlhttprequest"].includes(resourceType);
+
+  return API_MIME_RE.test(`${accept} ${requestContentType} ${responseContentType}`) || API_URL_RE.test(url);
+}
+
+function isApiCaptureEntry(entry) {
+  const headers = entry?.headers || {};
+  const mimeType = String(entry?.mimeType || headers["content-type"] || headers["Content-Type"] || "");
+  return isApiRequestCandidate(entry?.url || "", mimeType);
+}
+
+function isApiRequestCandidate(url, contentHint = "") {
+  const normalizedUrl = String(url || "");
+  const hint = String(contentHint || "");
+  if (!isMockableUrl(normalizedUrl)) return false;
+  if (STATIC_RESOURCE_EXT_RE.test(normalizedUrl)) return false;
+  if (STATIC_MIME_RE.test(hint) || STATIC_TEXT_MIME_RE.test(hint)) return false;
+  return API_MIME_RE.test(hint) || API_URL_RE.test(normalizedUrl) || !hint;
+}
+
+function getRequestHeader(request, name) {
+  return getHeaderValue(request?.request?.headers, name);
+}
+
+function getResponseHeader(request, name) {
+  return getHeaderValue(request?.response?.headers, name);
+}
+
+function getHeaderValue(headers, name) {
+  const normalized = String(name).toLowerCase();
+  const found = (headers || []).find((header) => String(header.name || "").toLowerCase() === normalized);
+  return found?.value || "";
 }
 
 function headersToObject(headers) {
@@ -317,7 +446,7 @@ function renderRules() {
   els.rulesList.replaceChildren();
 
   if (!rules.length) {
-    els.rulesList.append(empty(canCaptureRequests
+    els.rulesList.append(empty(canCapture
       ? "No rules yet. Capture a request and turn it into a mock."
       : "No rules yet. Click Add and paste a cURL command, or import an existing rules JSON."));
     return;
@@ -378,9 +507,34 @@ function renderRules() {
 async function renameActiveGroup() {
   const group = state.groups.find((item) => item.id === activeGroupId);
   if (!group) return;
-  const name = prompt("Group name", group.name);
-  if (!name?.trim()) return;
-  group.name = name.trim();
+  openGroupDialog(group);
+}
+
+function openGroupDialog(group = null) {
+  editingGroupId = group?.id || null;
+  els.groupDialogTitle.textContent = group ? "Rename group" : "New group";
+  els.groupDialogHint.textContent = group
+    ? "Update the label for this mock state group."
+    : "Create a group for related mock states.";
+  els.groupNameInput.value = group?.name || "";
+  document.querySelector("#saveGroupBtn").textContent = group ? "Save name" : "Save group";
+  els.groupDialog.showModal();
+  els.groupNameInput.focus();
+  els.groupNameInput.select();
+}
+
+async function saveGroupFromDialog() {
+  const name = els.groupNameInput.value.trim();
+  if (!name) return;
+  if (editingGroupId) {
+    const group = state.groups.find((item) => item.id === editingGroupId);
+    if (group) group.name = name;
+  } else {
+    const group = createGroup(name);
+    activeGroupId = group.id;
+  }
+  editingGroupId = null;
+  els.groupDialog.close();
   await saveState();
   render();
 }
@@ -399,7 +553,7 @@ async function deleteActiveGroup() {
 }
 
 function renderCaptured() {
-  if (!canCaptureRequests) {
+  if (!canCapture) {
     els.captureToggle.checked = false;
     els.captureStateText.textContent = "Capture requires DevTools";
     els.capturedList.replaceChildren(empty("Open DevTools and select Mock Lite when you need to capture live requests."));
@@ -421,7 +575,7 @@ function renderCaptured() {
   els.capturedList.replaceChildren();
   if (!items.length) {
     els.capturedList.append(empty(captureEnabled
-      ? "Open or refresh the inspected page. Captured fetch/XHR requests will appear here."
+      ? "Open or refresh pages after capture is on. Captured fetch/XHR requests will appear here."
       : "Capture is paused. Turn it on when you want to collect new requests."));
     return;
   }
@@ -1216,7 +1370,8 @@ async function importRules(event) {
 function normalizeSavedState(saved) {
   return {
     settings: {
-      captureEnabled: saved.settings?.captureEnabled ?? true
+      captureEnabled: saved.settings?.captureEnabled ?? false,
+      capturePanelExpanded: saved.settings?.capturePanelExpanded ?? false
     },
     groups: saved.groups,
     rules: saved.rules || []

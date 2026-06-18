@@ -5,7 +5,9 @@
   "private": true,
   "scripts": {
     "build:vendor": "esbuild src/editor/codemirror-entry.js --bundle --format=iife --target=chrome100 --outfile=src/vendor/codemirror.bundle.js",
-    "package": "npm run build:vendor && ./scripts/package.sh"
+    "package": "npm run build:vendor && ./scripts/package.sh",
+    "version": "node scripts/sync-version.mjs && git add manifest.json",
+    "postversion": "git push origin HEAD && git push origin --tags"
   },
   "repository": {
     "type": "git",

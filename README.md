@@ -66,11 +66,26 @@ git clone https://github.com/eijil/request-mock-lite.git
 cd request-mock-lite
 ```
 
-Package a release zip:
+Package a release zip locally:
 
 ```bash
-./scripts/package.sh
+npm install
+npm run package
 ```
+
+## Releasing
+
+Releases are automated. Bump the version and push the tag — GitHub Actions builds
+the zip and publishes the GitHub Release:
+
+```bash
+npm version patch   # or: minor / major
+```
+
+`npm version` updates `package.json`, syncs `manifest.json` to the same version,
+commits, creates a `vX.Y.Z` tag, and pushes the commit and tag. The `Release`
+workflow (`.github/workflows/release.yml`) then packages the extension and
+attaches `request-mock-lite.zip` to the GitHub Release with auto-generated notes.
 
 ## License
 

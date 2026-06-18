@@ -3,7 +3,8 @@ set -eu
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 OUT_DIR="$(CDPATH= cd -- "$ROOT_DIR/.." && pwd)"
-ZIP_PATH="$OUT_DIR/request-mock-lite.zip"
+# ZIP_PATH can be overridden (e.g. in CI) to write inside the workspace.
+ZIP_PATH="${ZIP_PATH:-$OUT_DIR/request-mock-lite.zip}"
 
 rm -f "$ZIP_PATH"
 cd "$ROOT_DIR"

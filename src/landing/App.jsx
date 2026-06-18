@@ -159,6 +159,7 @@ function App() {
         <WorkflowBand />
         <GalleryBand />
         <FinalCta />
+        <Footer />
       </main>
     </LazyMotion>
   );
@@ -455,6 +456,30 @@ function FinalCta() {
         </m.div>
       </div>
     </MotionSection>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="site-footer relative overflow-hidden border-t border-cyan-300/15 bg-[#060c12]">
+      <div className="footer-title-bg" aria-hidden="true">
+        <span data-text="Request Mock Lite">Request Mock Lite</span>
+      </div>
+      <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-5 px-4 py-12 sm:px-6 md:flex-row md:items-end md:justify-between lg:px-8">
+        <div>
+          <p className="footer-kicker">local chrome extension workflow</p>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-slate-400">
+            Request Mock Lite keeps API mocking close to the browser, without shipping
+            request data to a hosted proxy.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-4 text-sm text-slate-400">
+          <a className="footer-link" href="https://github.com/eijil/request-mock-lite">GitHub</a>
+          <a className="footer-link" href="https://github.com/eijil/request-mock-lite/releases/latest">Release</a>
+          <a className="footer-link" href="#top">Back to top</a>
+        </div>
+      </div>
+    </footer>
   );
 }
 

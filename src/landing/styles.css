@@ -632,6 +632,93 @@ a {
   text-transform: uppercase;
 }
 
+.site-footer {
+  min-height: 17rem;
+}
+
+.site-footer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(34, 211, 238, 0.08), transparent 28%, transparent 72%, rgba(244, 114, 182, 0.07)),
+    linear-gradient(to bottom, rgba(190, 242, 100, 0.04), transparent 42%);
+  pointer-events: none;
+}
+
+.footer-title-bg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 1rem;
+  pointer-events: none;
+  user-select: none;
+  transform: translateY(1.1rem);
+}
+
+.footer-title-bg span {
+  position: relative;
+  max-width: 100%;
+  color: rgba(148, 163, 184, 0.038);
+  font-family: var(--font-cyber);
+  font-size: clamp(3.8rem, 13vw, 11rem);
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 0.82;
+  text-align: center;
+  text-transform: uppercase;
+  transform: skewX(-8deg);
+  -webkit-text-stroke: 1px rgba(34, 211, 238, 0.09);
+  text-shadow:
+    0.035em 0 0 rgba(34, 211, 238, 0.04),
+    -0.035em 0 0 rgba(244, 114, 182, 0.035),
+    0 0 34px rgba(34, 211, 238, 0.06);
+}
+
+.footer-title-bg span::before,
+.footer-title-bg span::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.footer-title-bg span::before {
+  color: rgba(34, 211, 238, 0.04);
+  clip-path: polygon(0 14%, 100% 14%, 100% 34%, 0 34%);
+  transform: translate(0.025em, -0.012em);
+}
+
+.footer-title-bg span::after {
+  color: rgba(244, 114, 182, 0.035);
+  clip-path: polygon(0 62%, 100% 62%, 100% 82%, 0 82%);
+  transform: translate(-0.025em, 0.014em);
+}
+
+.footer-kicker {
+  color: rgba(190, 242, 100, 0.72);
+  font-family: var(--font-terminal);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.footer-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: #94a3b8;
+  transition:
+    color 180ms ease,
+    text-shadow 180ms ease;
+}
+
+.footer-link:hover {
+  color: #c8f7ff;
+  text-shadow: 0 0 14px rgba(34, 211, 238, 0.28);
+}
+
 @media (max-width: 640px) {
   .pixel-button,
   .pixel-button-secondary {
@@ -699,6 +786,23 @@ a {
   .pixel-card,
   .workflow-step {
     min-height: auto;
+  }
+
+  .site-footer {
+    min-height: 19rem;
+  }
+
+  .footer-title-bg {
+    align-items: start;
+    justify-content: start;
+    padding: 1.5rem 1rem 0;
+  }
+
+  .footer-title-bg span {
+    max-width: 12ch;
+    font-size: clamp(3.25rem, 18vw, 5.4rem);
+    text-align: left;
+    overflow-wrap: anywhere;
   }
 }
 

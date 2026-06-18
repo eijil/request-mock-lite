@@ -361,11 +361,62 @@
     if (rule.responseMode === "function") {
       return runFunctionResponse(rule, request);
     }
+    if (rule.responseMode === "merge") {
+      return runMergeResponse(rule, request);
+    }
     return {
       status: rule.status || 200,
       headers: rule.headers || {},
       body: resolveResponseBody(rule, request)
     };
+  }
+
+  async function runMergeResponse(rule, request) {
+    let real = null;
+    try {
+      real = await fetchRealResponse(request);
+    } catch (error) {
+      console.warn(
+        "[Request Mock Lite] real request failed; merge falls back to the patch only",
+        error
+      );
+    }
+
+    const status = real ? real.status : (rule.status || 200);
+    const headers = real
+      ? { ...real.headers, ...lowerCaseHeaders(rule.headers || {}) }
+      : { ...(rule.headers || {}) };
+    delete headers["content-length"];
+
+    const patchText = (resolveResponseBody(rule, request) || "").trim();
+    if (!patchText) {
+      return { status, headers, body: real ? real.text : "" };
+    }
+
+    const patch = safeJsonParse(patchText);
+    if (patch === undefined) {
+      console.warn("[Request Mock Lite] merge patch is not valid JSON; returning it as-is");
+      return { status, headers, body: patchText };
+    }
+
+    const base = real ? safeJsonParse(real.text) : undefined;
+    if (base === undefined) {
+      console.warn("[Request Mock Lite] real response is not JSON; returning the patch as the body");
+      return { status, headers, body: JSON.stringify(patch) };
+    }
+
+    return { status, headers, body: JSON.stringify(deepMerge(base, patch)) };
+  }
+
+  function deepMerge(base, patch) {
+    if (!isPlainObject(base) || !isPlainObject(patch)) return patch;
+    const result = { ...base };
+    Object.keys(patch).forEach((key) => {
+      result[key] = isPlainObject(patch[key]) && isPlainObject(result[key])
+        ? deepMerge(result[key], patch[key])
+        : patch[key];
+    });
+    return result;
   }
 
   async function runFunctionResponse(rule, request) {

@@ -30,6 +30,7 @@ const els = {
   curlParseStatus: document.querySelector("#curlParseStatus"),
   ruleName: document.querySelector("#ruleName"),
   responseTypeRadios: Array.from(document.querySelectorAll('input[name="responseType"]')),
+  bodyModeHint: document.querySelector("#bodyModeHint"),
   ruleMethod: document.querySelector("#ruleMethod"),
   ruleMatchType: document.querySelector("#ruleMatchType"),
   ruleStatus: document.querySelector("#ruleStatus"),
@@ -57,13 +58,20 @@ let bodyEditor = null;
 let fullscreenEditor = null;
 let fullscreenOriginalBody = "";
 let lastResponseType = "json";
-let responseDrafts = { json: null, function: null };
+let responseDrafts = { json: null, function: null, merge: null };
 let extensionContextInvalidated = false;
 
 const STATIC_DEFAULT_BODY = "{}";
+const MERGE_DEFAULT_BODY = "{}";
 const FUNCTION_DEFAULT_BODY = `function (req) {
   return req.responseJSON;
 }`;
+
+function defaultBodyForType(type) {
+  if (type === "function") return FUNCTION_DEFAULT_BODY;
+  if (type === "merge") return MERGE_DEFAULT_BODY;
+  return STATIC_DEFAULT_BODY;
+}
 
 init();
 
@@ -316,7 +324,8 @@ function renderRules() {
   }
 
   rules.forEach((rule) => {
-    const modeTag = rule.responseMode === "function" ? ` · <span class="mode-tag">fn</span>` : "";
+    const modeTag = rule.responseMode === "function" ? ` · <span class="mode-tag">fn</span>`
+      : rule.responseMode === "merge" ? ` · <span class="mode-tag">merge</span>` : "";
     const card = document.createElement("article");
     card.className = "rule-card";
     card.innerHTML = `
@@ -458,11 +467,20 @@ function openRuleDialog(rule = null, capturedRequest = null) {
   setDelayValue(rule?.delayMs || 0);
   els.ruleUrlPattern.value = rule?.urlPattern || patternFromCapturedUrl(capturedRequest?.url) || "";
   const isFunction = rule?.responseMode === "function";
-  const initialType = isFunction ? "function" : "json";
-  const initialBody = isFunction ? (rule?.body || FUNCTION_DEFAULT_BODY) : prettyBody(body);
+  const isMerge = rule?.responseMode === "merge";
+  const initialType = isFunction ? "function" : isMerge ? "merge" : "json";
+  let initialBody;
+  if (isFunction) initialBody = rule?.body || FUNCTION_DEFAULT_BODY;
+  else if (isMerge) initialBody = rule?.body ? prettyBody(rule.body) : MERGE_DEFAULT_BODY;
+  else initialBody = prettyBody(body);
   setResponseType(initialType);
   lastResponseType = initialType;
-  responseDrafts = { json: null, function: null };
+  const savedBodies = rule?.responseBodies || {};
+  responseDrafts = {
+    json: savedBodies.json != null ? savedBodies.json : null,
+    merge: savedBodies.merge != null ? savedBodies.merge : null,
+    function: savedBodies.function != null ? savedBodies.function : null
+  };
   responseDrafts[initialType] = initialBody;
   els.ruleHeaders.value = JSON.stringify(headers, null, 2);
   setBodyValue(initialBody);
@@ -479,7 +497,7 @@ function onResponseTypeChange() {
   if (next === lastResponseType) return;
   responseDrafts[lastResponseType] = getBodyValue();
   const draft = responseDrafts[next];
-  setBodyValue(draft != null ? draft : (next === "function" ? FUNCTION_DEFAULT_BODY : STATIC_DEFAULT_BODY));
+  setBodyValue(draft != null ? draft : defaultBodyForType(next));
   lastResponseType = next;
   updateResponseTypeUi();
 }
@@ -495,10 +513,18 @@ function setResponseType(value) {
   });
 }
 
+const RESPONSE_TYPE_HINTS = {
+  merge: "Only write the fields you want to override — deep-merged into the real response (arrays are replaced).",
+  function: "function(req) { … } — req has url, method, path, query, headers, body and the real response, responseJSON, status."
+};
+
 function updateResponseTypeUi() {
-  const isFunction = getResponseType() === "function";
-  bodyEditor?.setLanguage?.(isFunction ? "javascript" : "json");
-  fullscreenEditor?.setLanguage?.(isFunction ? "javascript" : "json");
+  const type = getResponseType();
+  const hint = RESPONSE_TYPE_HINTS[type] || "";
+  els.bodyModeHint.textContent = hint;
+  els.bodyModeHint.hidden = !hint;
+  bodyEditor?.setLanguage?.(type === "function" ? "javascript" : "json");
+  fullscreenEditor?.setLanguage?.(type === "function" ? "javascript" : "json");
 }
 
 function deriveHeaders(capturedRequest) {
@@ -886,6 +912,10 @@ async function saveRuleFromDialog() {
       alert("Response function cannot be empty.");
       return;
     }
+  } else if (responseType === "merge") {
+    responseMode = "merge";
+    if (body.trim() && !hasTemplateTokens(body) &&
+      !validateJsonText(body, "Merge patch", { allowEmpty: true })) return;
   } else {
     responseMode = hasTemplateTokens(body) ? "template" : "static";
     if (!hasTemplateTokens(body) && shouldValidateBodyJson(body, headers) &&
@@ -897,6 +927,13 @@ async function saveRuleFromDialog() {
     alert("Delay must be a non-negative number.");
     return;
   }
+
+  responseDrafts[responseType] = body;
+  const responseBodies = {};
+  ["json", "merge", "function"].forEach((type) => {
+    const value = responseDrafts[type];
+    if (value != null && value !== "") responseBodies[type] = value;
+  });
 
   const payload = {
     id: editingRuleId || crypto.randomUUID(),
@@ -910,6 +947,7 @@ async function saveRuleFromDialog() {
     headers,
     responseMode,
     body,
+    responseBodies,
     enabled: els.ruleEnabled.checked,
     createdAt: Date.now()
   };

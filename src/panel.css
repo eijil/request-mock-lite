@@ -601,6 +601,18 @@ p {
   font-weight: 700;
 }
 
+.field-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.field-hint code {
+  color: var(--accent-2);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
 .delay-control {
   display: grid;
   grid-template-columns: minmax(96px, 1fr) 74px auto;

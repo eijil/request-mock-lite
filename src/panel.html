@@ -173,6 +173,7 @@
                 <span id="bodyFieldLabel">Response body</span>
                 <span class="radio-group" role="radiogroup" aria-label="Response body type">
                   <label><input type="radio" name="responseType" value="json" checked> Static</label>
+                  <label><input type="radio" name="responseType" value="merge"> Merge</label>
                   <label><input type="radio" name="responseType" value="function"> Dynamic</label>
                 </span>
               </span>
@@ -196,6 +197,7 @@
                 </button>
               </span>
             </span>
+            <p id="bodyModeHint" class="field-hint" hidden></p>
             <div id="ruleBodyEditor" class="code-editor"></div>
             <textarea id="ruleBody" name="body" rows="12" spellcheck="false" hidden></textarea>
           </div>

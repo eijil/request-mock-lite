@@ -9,6 +9,8 @@ const STATIC_MIME_RE = /^(image|audio|video|font)\//i;
 const STATIC_TEXT_MIME_RE = /\btext\/(css|javascript)\b|\bapplication\/(javascript|x-javascript|font-woff|font-woff2|octet-stream)\b/i;
 const API_MIME_RE = /\b(application\/(json|graphql\+json|problem\+json|xml|x-www-form-urlencoded)|text\/(plain|xml|event-stream))\b/i;
 const API_URL_RE = /\/(api|apis|graphql|gql|rpc|trpc|rest|v\d+)(\/|$|\?)/i;
+const COMMON_STATUS_CODES = new Set(["200", "201", "204", "404", "500"]);
+const cyberSelects = new Map();
 
 const els = {
   groupsList: document.querySelector("#groupsList"),
@@ -57,10 +59,15 @@ const els = {
   fullscreenDialog: document.querySelector("#fullscreenEditorDialog"),
   fullscreenBodyEditor: document.querySelector("#fullscreenBodyEditor"),
   playgroundDialog: document.querySelector("#templatePlaygroundDialog"),
+  confirmDialog: document.querySelector("#confirmDialog"),
+  confirmTitle: document.querySelector("#confirmTitle"),
+  confirmMessage: document.querySelector("#confirmMessage"),
+  confirmActionBtn: document.querySelector("#confirmActionBtn"),
   playgroundInput: document.querySelector("#playgroundInput"),
   playgroundOutput: document.querySelector("#playgroundOutput"),
   copyTokenFeedback: document.querySelector("#copyTokenFeedback"),
   ruleEnabled: document.querySelector("#ruleEnabled"),
+  ruleBlockRequest: document.querySelector("#ruleBlockRequest"),
   saveRuleBtn: document.querySelector("#saveRuleBtn")
 };
 
@@ -69,6 +76,7 @@ let activeGroupId = state.groups[0].id;
 let captured = [];
 let editingRuleId = null;
 let editingGroupId = null;
+let pendingConfirm = null;
 let bodyEditor = null;
 let fullscreenEditor = null;
 let fullscreenOriginalBody = "";
@@ -95,6 +103,7 @@ async function init() {
   captured = await loadCaptured();
   activeGroupId = state.groups[0]?.id || createGroup("Default").id;
   applyRuntimeMode();
+  enhanceCyberSelects();
   bindEvents();
   if (canCaptureRequests) bindNetworkCapture();
   if (canToolbarCapture) bindCapturedStorage();
@@ -121,6 +130,196 @@ function applyRuntimeMode() {
   els.clearCapturedBtn.disabled = true;
   els.captureSearch.disabled = true;
   els.captureStateText.textContent = "Capture requires DevTools";
+}
+
+function confirmAction({ title, message, actionText = "Confirm" }) {
+  if (pendingConfirm) resolveConfirm(false);
+
+  els.confirmTitle.textContent = title;
+  els.confirmMessage.textContent = message;
+  els.confirmActionBtn.textContent = actionText;
+  els.confirmDialog.showModal();
+  els.confirmActionBtn.focus();
+
+  return new Promise((resolve) => {
+    pendingConfirm = resolve;
+  });
+}
+
+function resolveConfirm(value) {
+  if (!pendingConfirm) return;
+  const resolve = pendingConfirm;
+  pendingConfirm = null;
+  if (els.confirmDialog.open) els.confirmDialog.close();
+  resolve(value);
+}
+
+function enhanceCyberSelects() {
+  [els.ruleMethod, els.ruleMatchType, els.ruleStatus, els.ruleDelayPreset]
+    .filter(Boolean)
+    .forEach(enhanceCyberSelect);
+
+  document.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element) || !event.target.closest(".cyber-select")) closeAllCyberSelects();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeAllCyberSelects();
+  });
+}
+
+function enhanceCyberSelect(select) {
+  if (cyberSelects.has(select)) return;
+
+  select.classList.add("native-select");
+  select.tabIndex = -1;
+  select.setAttribute("aria-hidden", "true");
+  const root = document.createElement("div");
+  root.className = "cyber-select";
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "cyber-select-trigger";
+  button.setAttribute("aria-haspopup", "listbox");
+  button.setAttribute("aria-expanded", "false");
+  button.innerHTML = '<span class="cyber-select-value"></span><span class="cyber-select-caret" aria-hidden="true"></span>';
+
+  const menu = document.createElement("div");
+  menu.className = "cyber-select-menu";
+  menu.setAttribute("role", "listbox");
+  menu.setAttribute("tabindex", "-1");
+
+  root.append(button, menu);
+  select.after(root);
+
+  const state = { button, menu, root };
+  cyberSelects.set(select, state);
+  renderCyberSelectOptions(select);
+  updateCyberSelect(select);
+
+  select.addEventListener("change", () => updateCyberSelect(select));
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleCyberSelect(select);
+  });
+  button.addEventListener("keydown", (event) => handleCyberSelectKeydown(event, select));
+  menu.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    const option = event.target.closest(".cyber-select-option");
+    if (!option || option.dataset.disabled === "true") return;
+    chooseCyberSelectValue(select, option.dataset.value);
+    state.button.focus();
+  });
+}
+
+function renderCyberSelectOptions(select) {
+  const state = cyberSelects.get(select);
+  if (!state) return;
+
+  state.menu.replaceChildren();
+  Array.from(select.options).forEach((option) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "cyber-select-option";
+    item.dataset.value = option.value;
+    item.dataset.disabled = String(option.disabled);
+    item.setAttribute("role", "option");
+    item.textContent = option.textContent;
+    if (option.disabled) item.disabled = true;
+    state.menu.append(item);
+  });
+}
+
+function toggleCyberSelect(select) {
+  const state = cyberSelects.get(select);
+  if (!state) return;
+
+  if (state.root.classList.contains("open")) closeCyberSelect(select);
+  else openCyberSelect(select);
+}
+
+function openCyberSelect(select) {
+  const state = cyberSelects.get(select);
+  if (!state) return;
+
+  closeAllCyberSelects(select);
+  updateCyberSelect(select);
+  state.root.classList.add("open");
+  state.button.setAttribute("aria-expanded", "true");
+}
+
+function closeCyberSelect(select) {
+  const state = cyberSelects.get(select);
+  if (!state) return;
+
+  state.root.classList.remove("open");
+  state.button.setAttribute("aria-expanded", "false");
+}
+
+function closeAllCyberSelects(except = null) {
+  cyberSelects.forEach((_state, select) => {
+    if (select !== except) closeCyberSelect(select);
+  });
+}
+
+function chooseCyberSelectValue(select, value) {
+  select.value = value;
+  updateCyberSelect(select);
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+  closeCyberSelect(select);
+}
+
+function updateCyberSelect(select) {
+  const state = cyberSelects.get(select);
+  if (!state) return;
+
+  const selected = select.selectedOptions[0] || select.options[0];
+  const label = selected?.textContent || "";
+  state.button.querySelector(".cyber-select-value").textContent = label;
+  state.button.setAttribute("aria-label", `${getCyberSelectLabel(select)}: ${label}`);
+  state.button.disabled = select.disabled;
+  state.root.classList.toggle("disabled", select.disabled);
+  state.menu.querySelectorAll(".cyber-select-option").forEach((option) => {
+    const isSelected = option.dataset.value === select.value;
+    option.classList.toggle("selected", isSelected);
+    option.setAttribute("aria-selected", String(isSelected));
+  });
+}
+
+function getCyberSelectLabel(select) {
+  const label = select.closest("label");
+  if (!label) return "Select";
+  return Array.from(label.childNodes)
+    .filter((node) => node.nodeType === Node.TEXT_NODE)
+    .map((node) => node.textContent.trim())
+    .find(Boolean) || "Select";
+}
+
+function syncCyberSelects() {
+  cyberSelects.forEach((_state, select) => updateCyberSelect(select));
+}
+
+function handleCyberSelectKeydown(event, select) {
+  if (!["ArrowDown", "ArrowUp", "Home", "End", "Enter", " "].includes(event.key)) return;
+  event.preventDefault();
+
+  if (event.key === "Enter" || event.key === " ") {
+    toggleCyberSelect(select);
+    return;
+  }
+
+  const enabledOptions = Array.from(select.options).filter((option) => !option.disabled);
+  const currentIndex = Math.max(0, enabledOptions.findIndex((option) => option.value === select.value));
+  let nextIndex = currentIndex;
+
+  if (event.key === "ArrowDown") nextIndex = Math.min(enabledOptions.length - 1, currentIndex + 1);
+  if (event.key === "ArrowUp") nextIndex = Math.max(0, currentIndex - 1);
+  if (event.key === "Home") nextIndex = 0;
+  if (event.key === "End") nextIndex = enabledOptions.length - 1;
+
+  const next = enabledOptions[nextIndex];
+  if (next) chooseCyberSelectValue(select, next.value);
+  openCyberSelect(select);
 }
 
 function makeDefaultState() {
@@ -243,6 +442,13 @@ function bindEvents() {
   document.querySelector("#cancelFullscreenBtn").addEventListener("click", cancelFullscreenEditor);
   document.querySelector("#applyFullscreenBtn").addEventListener("click", applyFullscreenEditor);
   document.querySelector("#closePlaygroundBtn").addEventListener("click", closeTemplatePlayground);
+  document.querySelector("#closeConfirmBtn").addEventListener("click", () => resolveConfirm(false));
+  document.querySelector("#cancelConfirmBtn").addEventListener("click", () => resolveConfirm(false));
+  els.confirmActionBtn.addEventListener("click", () => resolveConfirm(true));
+  els.confirmDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    resolveConfirm(false);
+  });
   els.playgroundInput.addEventListener("input", renderTemplatePlayground);
   document.querySelector("#templateTokenGrid").addEventListener("click", copyTemplateToken);
   els.clearCapturedBtn.addEventListener("click", () => {
@@ -453,10 +659,12 @@ function renderRules() {
   }
 
   rules.forEach((rule) => {
+    const blockTag = rule.blockRequest ? ` · <span class="mode-tag danger">block</span>` : "";
     const modeTag = rule.responseMode === "function" ? ` · <span class="mode-tag">fn</span>`
       : rule.responseMode === "merge" ? ` · <span class="mode-tag">merge</span>` : "";
+    const isRuleActive = Boolean(rule.enabled && group.enabled);
     const card = document.createElement("article");
-    card.className = "rule-card";
+    card.className = `rule-card${isRuleActive ? "" : " disabled"}`;
     card.innerHTML = `
       <div class="rule-head">
         <label class="switch" title="Enable rule">
@@ -465,13 +673,14 @@ function renderRules() {
         </label>
         <div>
           <div class="rule-title">${escapeHtml(rule.name)}</div>
-          <div class="meta"><span class="method">${rule.method}</span> · ${rule.matchType} · <span class="status ${rule.status >= 400 ? "error" : ""}">${rule.status}</span>${modeTag}${rule.delayMs ? ` · ${formatDelay(rule.delayMs)} delay` : ""}</div>
+          <div class="meta"><span class="method">${rule.method}</span> · ${rule.matchType}${blockTag}${modeTag}${rule.delayMs ? ` · ${formatDelay(rule.delayMs)} delay` : ""}</div>
         </div>
-        <span class="badge">${rule.enabled && group.enabled ? "active" : "off"}</span>
+        <span class="status-badge${rule.status >= 400 ? " error" : ""}">${rule.status}</span>
       </div>
       <div class="rule-pattern">${escapeHtml(rule.urlPattern)}</div>
       <div class="rule-actions">
         <button class="small-btn edit">Edit</button>
+        <button class="small-btn ghost block-toggle${rule.blockRequest ? "" : " danger"}">${rule.blockRequest ? "Mock" : "Block"}</button>
         <button class="small-btn ghost duplicate">Duplicate</button>
         <button class="small-btn ghost delete">Delete</button>
       </div>
@@ -483,6 +692,11 @@ function renderRules() {
       renderRules();
     });
     card.querySelector(".edit").addEventListener("click", () => openRuleDialog(rule));
+    card.querySelector(".block-toggle").addEventListener("click", async () => {
+      rule.blockRequest = !rule.blockRequest;
+      await saveState();
+      renderRules();
+    });
     card.querySelector(".duplicate").addEventListener("click", async () => {
       state.rules.unshift({
         ...rule,
@@ -494,7 +708,12 @@ function renderRules() {
       renderRules();
     });
     card.querySelector(".delete").addEventListener("click", async () => {
-      if (!confirm(`Delete "${rule.name}"?`)) return;
+      const confirmed = await confirmAction({
+        title: "Delete rule",
+        message: `Delete "${rule.name}"?`,
+        actionText: "Delete"
+      });
+      if (!confirmed) return;
       state.rules = state.rules.filter((item) => item.id !== rule.id);
       await saveState();
       renderRules();
@@ -544,7 +763,12 @@ async function deleteActiveGroup() {
   const group = state.groups.find((item) => item.id === activeGroupId);
   if (!group) return;
   const ruleCount = state.rules.filter((rule) => rule.groupId === group.id).length;
-  if (!confirm(`Delete "${group.name}" and ${ruleCount} rule${ruleCount === 1 ? "" : "s"}?`)) return;
+  const confirmed = await confirmAction({
+    title: "Delete group",
+    message: `Delete "${group.name}" and ${ruleCount} rule${ruleCount === 1 ? "" : "s"}?`,
+    actionText: "Delete"
+  });
+  if (!confirmed) return;
   state.groups = state.groups.filter((item) => item.id !== group.id);
   state.rules = state.rules.filter((rule) => rule.groupId !== group.id);
   activeGroupId = state.groups[0].id;
@@ -617,8 +841,9 @@ function openRuleDialog(rule = null, capturedRequest = null) {
   els.ruleName.value = rule?.name || capturedRequest?.url?.split("?")[0].split("/").slice(-1)[0] || "New mock";
   els.ruleMethod.value = rule?.method || capturedRequest?.method || "GET";
   els.ruleMatchType.value = rule?.matchType || (capturedRequest ? "path" : "exact");
-  els.ruleStatus.value = rule?.status || capturedRequest?.status || 200;
+  setRuleStatusValue(rule?.status || capturedRequest?.status || 200);
   setDelayValue(rule?.delayMs || 0);
+  syncCyberSelects();
   els.ruleUrlPattern.value = rule?.urlPattern || patternFromCapturedUrl(capturedRequest?.url) || "";
   const isFunction = rule?.responseMode === "function";
   const isMerge = rule?.responseMode === "merge";
@@ -639,6 +864,7 @@ function openRuleDialog(rule = null, capturedRequest = null) {
   els.ruleHeaders.value = JSON.stringify(headers, null, 2);
   setBodyValue(initialBody);
   els.ruleEnabled.checked = rule?.enabled ?? true;
+  els.ruleBlockRequest.checked = Boolean(rule?.blockRequest);
   els.dialog.showModal();
   ensureEditors();
   updateResponseTypeUi();
@@ -725,6 +951,7 @@ function applyParsedCurl(parsed) {
     : "ANY";
   els.ruleMethod.value = supportedMethod;
   els.ruleMatchType.value = "exact";
+  syncCyberSelects();
   els.ruleUrlPattern.value = parsed.url;
   if (!els.ruleName.value.trim() || els.ruleName.value === "New mock") {
     els.ruleName.value = nameFromUrl(parsed.url);
@@ -1103,6 +1330,7 @@ async function saveRuleFromDialog() {
     body,
     responseBodies,
     enabled: els.ruleEnabled.checked,
+    blockRequest: els.ruleBlockRequest.checked,
     createdAt: Date.now()
   };
 
@@ -1133,10 +1361,17 @@ function setDelayValue(delayMs) {
   syncDelayPreset(delayMs || 0);
 }
 
+function setRuleStatusValue(status) {
+  const value = String(status || 200);
+  els.ruleStatus.value = COMMON_STATUS_CODES.has(value) ? value : "200";
+  updateCyberSelect(els.ruleStatus);
+}
+
 function syncDelayPreset(delayMs) {
   const value = String(delayMs || 0);
   const option = Array.from(els.ruleDelayPreset.options).find((item) => item.value === value);
   els.ruleDelayPreset.value = option ? value : "custom";
+  updateCyberSelect(els.ruleDelayPreset);
 }
 
 function getBodyValue(editor = bodyEditor) {

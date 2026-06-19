@@ -153,7 +153,13 @@
             </label>
             <label>
               Status
-              <input id="ruleStatus" name="status" type="number" min="100" max="599" value="200" required>
+              <select id="ruleStatus" name="status" required>
+                <option value="200">200 OK</option>
+                <option value="201">201 Created</option>
+                <option value="204">204 No Content</option>
+                <option value="404">404 Not Found</option>
+                <option value="500">500 Server Error</option>
+              </select>
             </label>
             <label>
               Delay
@@ -230,16 +236,41 @@
         </div>
 
         <footer class="dialog-actions">
-          <label class="toggle">
-            <input id="ruleEnabled" type="checkbox" checked>
-            <span>Enabled</span>
-          </label>
+          <div class="dialog-toggles">
+            <label class="toggle">
+              <input id="ruleEnabled" type="checkbox" checked>
+              <span>Enabled</span>
+            </label>
+            <label class="toggle">
+              <input id="ruleBlockRequest" type="checkbox">
+              <span>Block request</span>
+            </label>
+          </div>
           <div>
             <button id="cancelRuleBtn" type="button" class="small-btn ghost">Cancel</button>
             <button id="saveRuleBtn" type="submit" class="small-btn primary">Save rule</button>
           </div>
         </footer>
       </form>
+    </dialog>
+
+    <dialog id="confirmDialog" class="confirm-dialog">
+      <section class="confirm-panel">
+        <header class="dialog-head">
+          <div>
+            <h2 id="confirmTitle">Confirm action</h2>
+            <p id="confirmMessage">This action cannot be undone.</p>
+          </div>
+          <button id="closeConfirmBtn" class="icon-btn close-btn" type="button" title="Close" aria-label="Close">×</button>
+        </header>
+        <footer class="dialog-actions">
+          <span></span>
+          <div>
+            <button id="cancelConfirmBtn" type="button" class="small-btn ghost">Cancel</button>
+            <button id="confirmActionBtn" type="button" class="small-btn danger">Delete</button>
+          </div>
+        </footer>
+      </section>
     </dialog>
 
     <dialog id="fullscreenEditorDialog" class="fullscreen-dialog">

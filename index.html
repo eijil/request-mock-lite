@@ -3,11 +3,102 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#081016" />
+    <meta name="application-name" content="Request Mock Lite" />
+    <meta name="apple-mobile-web-app-title" content="Request Mock Lite" />
     <meta
       name="description"
-      content="Request Mock Lite is a Chrome DevTools extension for capturing API requests and mocking fetch/XHR responses locally."
+      content="Request Mock Lite is a lightweight Chrome DevTools extension for testing API states locally with fetch/XHR capture, mock rules, response modes, and scenario switching."
     />
-    <title>Request Mock Lite</title>
+    <meta
+      name="keywords"
+      content="Chrome DevTools extension, API mock, fetch mock, XHR mock, frontend testing, local API mocking, response mocking"
+    />
+    <meta name="author" content="jiel" />
+    <link rel="canonical" href="https://eijil.github.io/request-mock-lite/" />
+    <link rel="icon" type="image/png" sizes="128x128" href="%BASE_URL%icon-128.png" />
+    <link rel="apple-touch-icon" href="%BASE_URL%icon-128.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Request Mock Lite" />
+    <meta property="og:title" content="Request Mock Lite - Local fetch/XHR API mocking for frontend developers" />
+    <meta
+      property="og:description"
+      content="Capture real API requests, create mock rules, choose Static, Merge, or Dynamic responses, and switch local test scenarios from the browser."
+    />
+    <meta property="og:url" content="https://eijil.github.io/request-mock-lite/" />
+    <meta property="og:image" content="https://eijil.github.io/request-mock-lite/og-image.png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="800" />
+    <meta property="og:image:alt" content="Request Mock Lite Chrome extension panel showing captured API requests and mock controls" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Request Mock Lite - Local fetch/XHR API mocking" />
+    <meta
+      name="twitter:description"
+      content="Test success, empty, slow, and error API states locally with a lightweight Chrome DevTools extension."
+    />
+    <meta name="twitter:image" content="https://eijil.github.io/request-mock-lite/og-image.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Request Mock Lite",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Chrome",
+        "description": "A lightweight Chrome DevTools extension for capturing fetch/XHR API requests and mocking local response scenarios.",
+        "url": "https://eijil.github.io/request-mock-lite/",
+        "downloadUrl": "https://github.com/eijil/request-mock-lite/releases/latest",
+        "codeRepository": "https://github.com/eijil/request-mock-lite",
+        "license": "https://github.com/eijil/request-mock-lite/blob/main/LICENSE",
+        "image": "https://eijil.github.io/request-mock-lite/og-image.png",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "How do I install the Chrome extension?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Download the latest release zip, unzip it, open chrome://extensions, enable Developer mode, and load the unzipped folder."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I add a mock rule?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Paste a cURL command into the Add flow, or capture a real fetch/XHR request and turn it into a rule with Mock this."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What response modes are supported?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Use Static for fixed responses, Merge to patch real API data, or Dynamic to compute a response from the request and real response."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I move rules between projects or teammates?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Export rules as JSON, import them later, or keep scenario groups for repeatable local testing."
+            }
+          }
+        ]
+      }
+    </script>
+    <title>Request Mock Lite - Local fetch/XHR API mocking</title>
   </head>
   <body>
     <div id="root"></div>

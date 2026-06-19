@@ -60,6 +60,7 @@
         enabled: rule.enabled,
         method: rule.method,
         status: rule.status,
+        blockRequest: Boolean(rule.blockRequest),
         matchType: rule.matchType,
         urlPattern: rule.urlPattern,
         responseMode: rule.responseMode || "static",
@@ -92,6 +93,10 @@
     }
     logHit("fetch", request, match);
     await wait(match.delayMs || 0);
+    if (match.blockRequest) {
+      captureBlockedRequest(request);
+      throw new TypeError("Request Mock Lite blocked request");
+    }
     const parts = await buildResponseParts(match, request);
     const response = new NativeResponse(parts.body, {
       status: parts.status,
@@ -152,6 +157,10 @@
           return;
         }
         logHit("xhr", request, match);
+        if (match.blockRequest) {
+          respondToBlockedXhr(this, request, match.delayMs || 0);
+          return;
+        }
         buildResponseParts(match, request).then((parts) => {
           this.__rmlMock = {
             body: parts.body,
@@ -193,6 +202,23 @@
       dispatch(xhr, "load");
       dispatch(xhr, "loadend");
       captureMockXhrResponse(mock, xhr.__rml?.method || "GET");
+    }, delayMs);
+  }
+
+  function respondToBlockedXhr(xhr, request, delayMs) {
+    window.setTimeout(() => {
+      setXhrProps(xhr, {
+        readyState: 4,
+        status: 0,
+        statusText: "",
+        responseURL: request.url,
+        responseText: "",
+        response: null
+      });
+      dispatch(xhr, "readystatechange");
+      dispatch(xhr, "error");
+      dispatch(xhr, "loadend");
+      captureBlockedRequest(request);
     }, delayMs);
   }
 
@@ -245,6 +271,18 @@
       mimeType: mock.headers["content-type"] || "",
       body: mock.body || "",
       headers: mock.headers || {}
+    });
+  }
+
+  function captureBlockedRequest(request) {
+    if (!shouldCapture(request.url)) return;
+    emitCapture({
+      url: request.url,
+      method: request.method,
+      status: 0,
+      mimeType: "",
+      body: "",
+      headers: {}
     });
   }
 
@@ -408,6 +446,7 @@
       groups: Array.isArray(state?.groups) ? state.groups : [],
       rules: Array.isArray(state?.rules) ? state.rules.map((rule) => ({
         ...rule,
+        blockRequest: Boolean(rule.blockRequest),
         method: String(rule.method || "GET").toUpperCase(),
         headers: lowerCaseHeaders(rule.headers || {})
       })) : []
@@ -474,11 +513,12 @@
 
   function logHit(kind, request, rule) {
     const hasTokens = hasTemplateTokens(rule.body || "");
+    const action = rule.blockRequest ? "blocked" : "mocked";
     console.info(
-      `[Request Mock Lite] mocked ${kind.toUpperCase()} ${request.method} ${request.url}`,
+      `[Request Mock Lite] ${action} ${kind.toUpperCase()} ${request.method} ${request.url}`,
       {
         rule: rule.name,
-        status: rule.status,
+        status: rule.blockRequest ? "blocked" : rule.status,
         matchType: rule.matchType,
         responseMode: rule.responseMode || "static",
         hasTemplateTokens: hasTokens
@@ -810,7 +850,7 @@
     const path = compactPath(request.url);
     ui.host.hidden = false;
     ui.host.dataset.hit = "true";
-    ui.title.textContent = "MOCK HIT";
+    ui.title.textContent = rule.blockRequest ? "REQUEST BLOCKED" : "MOCK HIT";
     ui.meta.textContent = `${request.method} ${path}`;
     ui.detail.textContent = rule.name || "";
     window.clearTimeout(indicatorHitTimer);

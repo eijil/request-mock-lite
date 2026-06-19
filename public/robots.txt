@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://eijil.github.io/request-mock-lite/sitemap.xml

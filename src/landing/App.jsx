@@ -1,15 +1,11 @@
 import { LazyMotion, domAnimation, m, useReducedMotion } from "motion/react";
 import Braces from "lucide-react/dist/esm/icons/braces.mjs";
 import Clock3 from "lucide-react/dist/esm/icons/clock-3.mjs";
+import MessageSquareText from "lucide-react/dist/esm/icons/message-square-text.mjs";
 import Download from "lucide-react/dist/esm/icons/download.mjs";
 import FileJson from "lucide-react/dist/esm/icons/file-json.mjs";
-import ListChecks from "lucide-react/dist/esm/icons/list-checks.mjs";
-import Network from "lucide-react/dist/esm/icons/network.mjs";
-import PlugZap from "lucide-react/dist/esm/icons/plug-zap.mjs";
-import Radar from "lucide-react/dist/esm/icons/radar.mjs";
 import Route from "lucide-react/dist/esm/icons/route.mjs";
 import ScanLine from "lucide-react/dist/esm/icons/scan-line.mjs";
-import SlidersHorizontal from "lucide-react/dist/esm/icons/sliders-horizontal.mjs";
 import Terminal from "lucide-react/dist/esm/icons/terminal.mjs";
 import ToggleRight from "lucide-react/dist/esm/icons/toggle-right.mjs";
 import Workflow from "lucide-react/dist/esm/icons/workflow.mjs";
@@ -48,12 +44,17 @@ const heroTextStagger = {
   },
 };
 
-const navItems = ["Capture", "Mock", "Rules", "Export"];
+const navItems = [
+  { label: "Features", href: "#capture" },
+  { label: "Screens", href: "#rules" },
+  { label: "FAQ", href: "#faq" },
+  { label: "Export", href: "#export" },
+];
 
 const stats = [
-  ["fetch/XHR", "response mocking"],
-  ["local-first", "Chrome extension"],
-  ["JSON", "import and export"],
+  ["fetch/XHR", "API capture"],
+  ["3 modes", "Static / Merge / Dynamic"],
+  ["scenarios", "grouped states"],
 ];
 
 const requestSignals = [
@@ -65,46 +66,23 @@ const requestSignals = [
 const features = [
   {
     icon: ScanLine,
-    title: "Capture live requests",
-    text: "Inspect traffic from the active tab, then promote any useful request into a reusable mock rule.",
+    title: "Capture real requests",
+    text: "Record only API traffic from the active tab.",
   },
   {
     icon: Route,
-    title: "Match the right surface",
-    text: "Target origin + path, exact URLs, substrings, or regex patterns without leaving the browser.",
+    title: "Create from one hit",
+    text: "Turn a captured request into a rule with URL, method, headers, and body filled in.",
   },
   {
     icon: FileJson,
-    title: "Edit real responses",
-    text: "Shape status codes, headers, delay, and JSON bodies in a focused rule editor.",
+    title: "Choose response mode",
+    text: "Use Static, Merge, or Dynamic responses for different testing needs.",
   },
   {
     icon: ToggleRight,
-    title: "Switch states fast",
-    text: "Enable groups or single rules when you need a specific API state, then turn them off cleanly.",
-  },
-];
-
-const workflow = [
-  {
-    icon: Radar,
-    title: "Listen",
-    text: "Open the DevTools panel and refresh the page you are testing.",
-  },
-  {
-    icon: PlugZap,
-    title: "Promote",
-    text: "Use a captured request as the starting point for a mock rule.",
-  },
-  {
-    icon: SlidersHorizontal,
-    title: "Tune",
-    text: "Adjust matching, status, headers, body, and delay until the state is exact.",
-  },
-  {
-    icon: ListChecks,
-    title: "Replay",
-    text: "Keep the rule enabled and repeat the frontend flow with stable responses.",
+    title: "Switch scenarios fast",
+    text: "Group rules into states like empty cart, payment failed, or slow inventory.",
   },
 ];
 
@@ -113,19 +91,38 @@ const gallery = [
     src: panelShot,
     alt: "Request Mock Lite DevTools panel showing captured network requests and mock controls",
     title: "Capture panel",
-    eyebrow: "DevTools signal",
+    eyebrow: "Captured APIs",
   },
   {
     src: editorShot,
     alt: "Request Mock Lite rule editor with JSON response body and matching options",
     title: "Rule editor",
-    eyebrow: "Response lab",
+    eyebrow: "Response modes",
   },
   {
     src: badgeShot,
     alt: "A browser page showing the Request Mock Lite in-page mock badge",
     title: "Page badge",
-    eyebrow: "Runtime feedback",
+    eyebrow: "Mock feedback",
+  },
+];
+
+const faqs = [
+  {
+    question: "How do I install the Chrome extension?",
+    answer: "Download the latest release zip, unzip it, open chrome://extensions, enable Developer mode, and load the unzipped folder.",
+  },
+  {
+    question: "How do I add a mock rule?",
+    answer: "Paste a cURL command into the Add flow, or capture a real fetch/XHR request and turn it into a rule with Mock this.",
+  },
+  {
+    question: "What response modes are supported?",
+    answer: "Use Static for fixed responses, Merge to patch real API data, or Dynamic to compute a response from the request and real response.",
+  },
+  {
+    question: "Can I move rules between projects or teammates?",
+    answer: "Yes. Export rules as JSON, import them later, or keep scenario groups for repeatable local testing.",
   },
 ];
 
@@ -156,8 +153,8 @@ function App() {
         <Hero />
         <StatsBand />
         <FeatureBand />
-        <WorkflowBand />
         <GalleryBand />
+        <FaqBand />
         <FinalCta />
         <Footer />
       </main>
@@ -167,25 +164,27 @@ function App() {
 
 function Header() {
   return (
-    <header className="fixed inset-x-0 top-0 z-40 border-b border-cyan-300/15 bg-[#081016]/84 backdrop-blur-xl">
-      <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
-        <a className="group flex min-h-11 items-center gap-3 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300" href="#top">
+    <header className="site-header fixed inset-x-0 top-0 z-40">
+      <nav className="site-nav mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
+        <a className="brand-lockup group flex min-h-11 items-center gap-3 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300" href="#top">
           <img className="brand-mark h-9 w-9" src={iconUrl} alt="" />
-          <span className="brand-wordmark text-sm leading-none text-cyan-100 sm:text-base">Request Mock Lite</span>
+          <span className="brand-wordmark text-sm leading-none text-cyan-100 sm:text-base" data-text="Request Mock Lite" aria-label="Request Mock Lite">
+            <span className="brand-wordmark-text" aria-hidden="true">Request Mock Lite</span>
+          </span>
         </a>
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="nav-cluster hidden items-center md:flex">
           {navItems.map((item) => (
             <a
-              className="pixel-link min-h-11 px-3 py-3 text-xs uppercase tracking-normal text-slate-300 transition hover:text-cyan-100 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300"
-              href={`#${item.toLowerCase()}`}
-              key={item}
+              className="pixel-link min-h-10 px-3 py-3 text-xs uppercase tracking-normal text-slate-300 transition hover:text-cyan-100 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300"
+              href={item.href}
+              key={item.href}
             >
-              {item}
+              {item.label}
             </a>
           ))}
         </div>
         <a
-          className="pixel-button min-h-11 px-4 py-3 text-xs text-[#061015] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-lime-300"
+          className="pixel-button nav-release min-h-11 px-4 py-3 text-xs text-[#061015] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-lime-300"
           href="https://github.com/eijil/request-mock-lite/releases/latest"
         >
           <Download className="h-4 w-4" aria-hidden="true" />
@@ -226,9 +225,9 @@ function Hero() {
               <Download className="h-4 w-4" aria-hidden="true" />
               Download
             </a>
-            <a className="pixel-button-secondary min-h-12 px-5 py-3 text-sm" href="#capture">
-              <Network className="h-4 w-4" aria-hidden="true" />
-              Workflow
+            <a className="pixel-button-secondary min-h-12 px-5 py-3 text-sm" href="https://github.com/eijil/request-mock-lite/issues">
+              <MessageSquareText className="h-4 w-4" aria-hidden="true" />
+              Feedback
             </a>
           </m.div>
         </m.div>
@@ -323,8 +322,12 @@ function FeatureBand() {
     <MotionSection id="capture" className="relative border-t border-cyan-300/15 bg-[#0c1420]/80 py-20 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <m.div className="section-heading" variants={fadeUp}>
-          <span>Capture to mock to keep building</span>
-          <h2>Fast API states without a backend detour.</h2>
+          <span>Scenario testing</span>
+          <h2>Test every API state from the browser.</h2>
+          <p>
+            Capture real fetch/XHR requests, turn them into mocks, then switch
+            success, empty, slow, and error states locally.
+          </p>
         </m.div>
         <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {features.map((feature) => (
@@ -350,55 +353,15 @@ function FeatureCard({ feature }) {
   );
 }
 
-function WorkflowBand() {
-  return (
-    <MotionSection id="mock" className="relative py-20 sm:py-24">
-      <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
-        <m.div className="section-heading lg:sticky lg:top-28 lg:self-start" variants={fadeUp}>
-          <span>Low ceremony loop</span>
-          <h2>Turn flaky API moments into repeatable test states.</h2>
-          <p>
-            The extension keeps mocking close to the page you are debugging, so you can
-            work through loading, empty, error, and success paths on demand.
-          </p>
-        </m.div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {workflow.map((step, index) => (
-            <WorkflowStep index={index + 1} key={step.title} step={step} />
-          ))}
-        </div>
-      </div>
-    </MotionSection>
-  );
-}
-
-function WorkflowStep({ index, step }) {
-  const Icon = step.icon;
-
-  return (
-    <m.article className="workflow-step" variants={fadeUp}>
-      <div className="flex items-center justify-between gap-4">
-        <div className="icon-shell">
-          <Icon className="h-5 w-5" aria-hidden="true" />
-        </div>
-        <span className="step-index">0{index}</span>
-      </div>
-      <h3>{step.title}</h3>
-      <p>{step.text}</p>
-    </m.article>
-  );
-}
-
 function GalleryBand() {
   return (
     <MotionSection id="rules" className="relative border-y border-cyan-300/15 bg-[#0e1622]/88 py-20 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <m.div className="section-heading max-w-3xl" variants={fadeUp}>
-          <span>Actual extension screens</span>
-          <h2>Readable controls, a little neon pressure.</h2>
+          <span>Product screens</span>
+          <h2>Cyberpunk pixel UI, built for real debugging.</h2>
           <p>
-            The visual system nods to terminals and pixel interfaces, but keeps the product
-            screenshots large enough to inspect.
+            Capture requests, edit mock rules, and confirm active mocks directly on the page.
           </p>
         </m.div>
         <div className="mt-10 grid gap-5 lg:grid-cols-3">
@@ -420,6 +383,31 @@ function GalleryItem({ item }) {
         <h3>{item.title}</h3>
       </div>
     </m.article>
+  );
+}
+
+function FaqBand() {
+  return (
+    <MotionSection id="faq" className="relative border-t border-cyan-300/15 bg-[#09131c]/78 py-20 sm:py-24">
+      <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
+        <m.div className="section-heading" variants={fadeUp}>
+          <span>FAQ</span>
+          <h2>Fast answers before you install.</h2>
+          <p>
+            The short version: it runs locally, focuses on API traffic, and keeps mock
+            states easy to switch.
+          </p>
+        </m.div>
+        <div className="faq-list">
+          {faqs.map((item, index) => (
+            <m.details className="faq-item" key={item.question} open={index === 0} variants={fadeUp}>
+              <summary>{item.question}</summary>
+              <p>{item.answer}</p>
+            </m.details>
+          ))}
+        </div>
+      </div>
+    </MotionSection>
   );
 }
 
@@ -451,7 +439,7 @@ function FinalCta() {
           </div>
           <div className="mt-12 inline-flex items-center gap-3 border border-amber-300/25 bg-amber-300/8 px-4 py-3 text-left text-sm text-amber-100">
             <Clock3 className="h-5 w-5 shrink-0" aria-hidden="true" />
-            <span>Built for local Chrome extension workflows, not a hosted proxy.</span>
+            <span>Runs locally in Chrome. No proxy server required.</span>
           </div>
         </m.div>
       </div>
@@ -465,19 +453,10 @@ function Footer() {
       <div className="footer-title-bg" aria-hidden="true">
         <span data-text="Request Mock Lite">Request Mock Lite</span>
       </div>
-      <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-5 px-4 py-12 sm:px-6 md:flex-row md:items-end md:justify-between lg:px-8">
-        <div>
-          <p className="footer-kicker">local chrome extension workflow</p>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-slate-400">
-            Request Mock Lite keeps API mocking close to the browser, without shipping
-            request data to a hosted proxy.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-4 text-sm text-slate-400">
-          <a className="footer-link" href="https://github.com/eijil/request-mock-lite">GitHub</a>
-          <a className="footer-link" href="https://github.com/eijil/request-mock-lite/releases/latest">Release</a>
-          <a className="footer-link" href="#top">Back to top</a>
-        </div>
+      <div className="footer-inner relative z-10 mx-auto flex max-w-7xl items-center justify-center px-4 sm:px-6 lg:px-8">
+        <p className="footer-copy">
+          © 2026 Request Mock Lite. Made by <span>@eijil</span> & AI agent.
+        </p>
       </div>
     </footer>
   );

@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev:landing": "vite --host 127.0.0.1",
-    "build:landing": "vite build",
+    "build:landing": "vite build && vite build --ssr src/landing/entry-server.jsx --outDir dist/server && node scripts/prerender-landing.mjs",
     "preview:landing": "vite preview --host 127.0.0.1",
     "build:vendor": "esbuild src/editor/codemirror-entry.js --bundle --format=iife --target=chrome100 --outfile=src/vendor/codemirror.bundle.js",
     "package": "npm run build:vendor && ./scripts/package.sh",

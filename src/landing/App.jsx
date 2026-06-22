@@ -128,12 +128,13 @@ const faqs = [
 
 function MotionSection({ children, className = "", ...sectionProps }) {
   const shouldReduceMotion = useReducedMotion();
+  const isPrerender = typeof window === "undefined";
 
   return (
     <m.section
       className={className}
       {...sectionProps}
-      initial={shouldReduceMotion ? false : "hidden"}
+      initial={isPrerender || shouldReduceMotion ? false : "hidden"}
       whileInView="visible"
       viewport={{ once: true, margin: "-80px" }}
       variants={stagger}
@@ -197,12 +198,13 @@ function Header() {
 
 function Hero() {
   const shouldReduceMotion = useReducedMotion();
+  const isPrerender = typeof window === "undefined";
 
   return (
     <section id="top" className="relative min-h-[86dvh] pt-20 sm:pt-24">
       <div className="hero-stage mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
         <m.div
-          initial={shouldReduceMotion ? false : "hidden"}
+          initial={isPrerender || shouldReduceMotion ? false : "hidden"}
           animate="visible"
           variants={heroTextStagger}
           className="hero-copy"
@@ -234,7 +236,7 @@ function Hero() {
 
         <m.div
           className="hero-product-field"
-          initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.96, y: 18 }}
+          initial={isPrerender || shouldReduceMotion ? false : { opacity: 0, scale: 0.96, y: 18 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.55, delay: 0.08, ease: "easeOut" }}
         >
@@ -289,11 +291,12 @@ function HeroTextLine({ children, delay }) {
 
 function RequestSignal({ index, method, path, status }) {
   const shouldReduceMotion = useReducedMotion();
+  const isPrerender = typeof window === "undefined";
 
   return (
     <m.div
       className="request-signal"
-      initial={shouldReduceMotion ? false : { opacity: 0, x: 18 }}
+      initial={isPrerender || shouldReduceMotion ? false : { opacity: 0, x: 18 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.32, delay: 0.3 + index * 0.09, ease: "easeOut" }}
     >
